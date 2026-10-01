@@ -1,0 +1,57 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {control} from './controls.mjs';
+const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+const page=await browser.newPage({viewport:{width:1440,height:1200}}),errors=[];
+page.on('pageerror',error=>errors.push(error.message));
+const cell=(event,string)=>page.locator(`.tab-cell[data-event="${event}"][data-string="${string}"]`);
+const snapshot=()=>page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
+try{
+  await page.goto(process.env.TABLENS_TEST_URL??'http://127.0.0.1:8765');await page.waitForFunction(()=>document.querySelector('#score-title').value==='Duvet');
+  const raw={metadata:{title:'选段验证',tempo_bpm:80,time_signature:[4,4]},measures:[{number:1,events:[
+    {duration:null,notes:[{string:1,fret:null}]},{duration:'1/8',notes:[{string:1,fret:3},{string:6,fret:0}]},{duration:'1/8',notes:[{string:2,fret:5}]}]},
+    {number:2,events:[{duration:'1/4',notes:[{string:3,fret:7}]},{duration:'1/4',kind:'rest',notes:[]},{duration:'1/4',notes:[{string:2,fret:2}]}]}]};
+  await page.locator('#file-input').setInputFiles({name:'selection.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(raw))});
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='选段验证');
+  assert.equal(await page.locator('.rest-symbol').count(),1);assert.equal(await page.locator('.tab-cell .rest-symbol').count(),0);
+  assert.equal(await page.locator('.rest-symbol').first().evaluate(node=>node.closest('.rhythm-symbol')!==null),true);
+  await page.locator('[data-rhythm="m2-e2"]').click();await page.locator('[data-rhythm-rest]').click();
+  assert.equal((await snapshot()).measures[1].events[1].kind,'unknown');assert.equal((await snapshot()).measures[1].events[1].duration,'1/4');
+  await page.locator('#undo').click();assert.equal((await snapshot()).measures[1].events[1].kind,'rest');
+  await control(page,'#instrument').selectOption('synth');await page.locator('#practice-close').click();
+  await cell('m1-e2',1).click();await page.locator('#play-selected').click();
+  await page.waitForFunction(()=>document.querySelector('#play-status').textContent.includes('第 2 个位置'));
+  assert.equal(await page.locator('[data-event="m1-e1"].playing-note').count(),0);assert.equal(await page.locator('[data-event="m1-e2"].playing-note.has-note').count(),2);
+  await page.waitForTimeout(1050);await page.locator('#play').click();const paused=await page.locator('#play-time').textContent();
+  await page.waitForTimeout(200);assert.equal(await page.locator('#play-time').textContent(),paused);
+  await page.locator('#play').click();await page.waitForTimeout(100);assert.notEqual(await page.locator('#play-time').textContent(),'0:00 / 0:03');await page.locator('#stop').click();
+  await cell('m1-e2',1).click();await cell('m1-e3',2).click({modifiers:['Control']});
+  assert.match(await page.locator('#selection-count').textContent(),/2 个音符 · 2 个位置/);
+  await page.locator('[data-selection-dynamics=soft]').click();let score=await snapshot();
+  assert.equal(score.measures[0].events[1].notes.find(n=>n.string===1).dynamics,'soft');assert.equal(score.measures[0].events[1].notes.find(n=>n.string===6).dynamics,undefined);
+  await page.locator('#selection-duration').selectOption('1/16');await page.locator('#selection-apply-duration').click();
+  score=await snapshot();assert.equal(score.measures[0].events[1].duration,'1/16');assert.equal(score.measures[0].events[1].notes.length,2);
+  await page.locator('#tab-view').focus();await page.keyboard.press('Backspace');score=await snapshot();
+  assert.equal(score.measures[0].events[1].notes.length,1);assert.equal(score.measures[0].events[2].notes.length,0);assert.equal(score.measures[0].events[2].duration,'1/16');assert.equal(score.measures[0].events[2].kind,'unknown');
+  await page.locator('#undo').click();assert.equal((await snapshot()).measures[0].events[2].notes.length,1);
+  await page.locator('#selection-clear').click();
+  const first=await page.locator('.tab-staff').first().boundingBox(),last=await page.locator('.tab-staff').last().boundingBox();
+  const start={x:first.x+4,y:first.y+30},end={x:last.x+last.width-10,y:last.y+173};
+  await page.mouse.move(start.x,start.y);await page.mouse.down();await page.mouse.move(end.x,end.y,{steps:15});
+  assert.equal(await page.locator('.selection-box').count(),1);await page.mouse.up();
+  assert.match(await page.locator('#selection-count').textContent(),/6 个音符 · 5 个位置/);
+  assert.equal(await page.locator('.selected-cell.has-note').count(),6);
+  await page.locator('[data-selection-dynamics=strong]').click();assert.equal((await snapshot()).measures[1].events[0].notes[0].dynamics,'strong');
+  await page.locator('#selection-clear').click();await cell('m1-e2',1).click();await page.locator('[data-position="m2-e3"]').click({modifiers:['Shift']});
+  assert.match(await page.locator('#selection-count').textContent(),/5 个音符 · 5 个位置/);
+  await page.locator('#selection-delete').click();assert.equal((await snapshot()).measures[1].events[1].kind,'rest');assert.equal((await snapshot()).measures[1].events[2].notes.length,0);
+  await page.locator('#undo').click();
+  await page.screenshot({path:'app/.runtime/tablens-selection.png'});
+  await page.locator('#selection-clear').click();await page.setViewportSize({width:1440,height:750});
+  await page.locator('#tab-view').evaluate(node=>node.scrollTop=0);
+  const staff=await page.locator('.tab-staff').first().boundingBox(),viewport=await page.locator('#tab-view').boundingBox();
+  await page.mouse.move(staff.x+4,staff.y+30);await page.mouse.down();await page.mouse.move(staff.x+20,viewport.y+viewport.height-8,{steps:8});await page.waitForTimeout(450);
+  assert.ok(await page.locator('#tab-view').evaluate(node=>node.scrollTop)>0);await page.mouse.up();assert.equal(await page.locator('.selection-box').count(),0);
+  assert.deepEqual(errors,[]);
+  console.log('PASS: selected-position playback, pause/resume past unknown prefix, Ctrl/Shift selection, cross-measure drag, precise dynamics, shared rhythm, batch deletion/undo and rhythm-only rests.');
+}finally{await browser.close();}

@@ -1,0 +1,55 @@
+请读取图片，只记录实际标号为第 2、第 3 小节的完整记号，并提取可见的页头设置。
+若有两张图，第一张是页头及谱表开头，第二张是第 2、3 小节所在谱行。
+
+输出 tab-symbols-v1 JSON，键必须与下方示例一致，不增加 onset、duration、tick、confidence 或其他字段。
+每个目标小节独立编号发声列。string_rows 从第 1 弦至第 6 弦，各行品位按 column 递增。没有品位的行仍输出空列表。不要从示例复制待识别小节的品位、事件数量或节奏。
+
+下面是虚构小节 99 的格式演示，含第 4 弦 7 品和一个尚未定位的数字，不是待识别图片的答案。schema_version 是固定字符串，其他值根据图片读取。休止列 kind 为 rest，各弦行不应有引用该列的品位。
+{
+  "schema_version": "tab-symbols-v1",
+  "metadata": {
+    "title": null,
+    "tempo_bpm": null,
+    "tempo_unit": null,
+    "time_signature": null,
+    "capo": null,
+    "string_labels_high_to_low": null
+  },
+  "measures": [{
+    "number": 99,
+    "rhythm_mode": "single_sequence",
+    "completeness": "unknown",
+    "string_rows": [
+      {"string": 1, "notes": []},
+      {"string": 2, "notes": []},
+      {"string": 3, "notes": []},
+      {"string": 4, "notes": [{"column": 1, "fret": 7}]},
+      {"string": 5, "notes": []},
+      {"string": 6, "notes": []}
+    ],
+    "unassigned_notes": [{"string": null, "column": null, "fret": 9, "reason": "演示：无法确定位置"}],
+    "columns": [{
+      "index": 1,
+      "kind": "notes",
+      "rhythm": {
+        "stem_present": true,
+        "beam_count": 2,
+        "flag_count": 0,
+        "dot_count": 0,
+        "note_shape": null,
+        "rest_symbol": null,
+        "unsupported_marks": []
+      },
+      "uncertain_items": []
+    }],
+    "connections": [],
+    "uncertain_items": []
+  }],
+  "uncertain_items": []
+}
+
+connections 的非空元素格式为：
+{"from_column":1,"to_column":2,"string":4,"mark":"curve","text":null,"uncertain_items":[]}
+此行只展示连接字段；只有图片实际存在对应列与连接时才输出。
+
+uncertain_items 始终是字符串列表。读不清节奏时使用 null，不根据 4/4、常见指法或时值总和猜横梁数量。

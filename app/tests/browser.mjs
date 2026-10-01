@@ -1,0 +1,116 @@
+import {control} from './controls.mjs';
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {readFile, mkdir} from 'node:fs/promises';
+
+const browser = await chromium.launch({headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+const context = await browser.newContext({viewport: {width: 1440, height: 1050}, acceptDownloads: true});
+const page = await context.newPage();
+const errors = [];
+page.on('pageerror', error => errors.push(error.message));
+try {
+  await page.goto(process.env.TABLENS_TEST_URL??'http://127.0.0.1:8765');
+  await page.waitForFunction(() => document.querySelector('#score-title').value === 'Duvet');
+  assert.equal(await page.locator('.has-note').count(), 31);
+  assert.equal(await control(page,'#edit-fret').inputValue(), '5');
+  assert.match(await page.locator('.measure-state').first().textContent(), /待设置/);
+  assert.equal(await page.locator('.source-focus').count(), 1);
+
+  await control(page,'#add-position-before').click();
+  assert.match(await control(page,'#score-count').textContent(), /32 个演奏位置/);
+  assert.notEqual(await page.locator('[data-string="1"]').first().getAttribute('data-event'), 'm1-e1');
+  await control(page,'#edit-duration').selectOption('1/8');
+  await control(page,'#set-rest').click();
+  assert.equal(await page.locator('.rest-symbol').count(), 1);
+  assert.match(await control(page,'#set-rest').textContent(), /移除休止符/);
+  await control(page,'#set-rest').click();
+  assert.equal(await page.locator('.rest-symbol').count(), 0);
+  assert.equal(await control(page,'#edit-duration').inputValue(), '1/8');
+  assert.match(await control(page,'#score-count').textContent(), /32 个演奏位置/);
+  await control(page,'#undo').click();
+  assert.equal(await page.locator('.rest-symbol').count(), 1);
+  await control(page,'#redo').click();
+  assert.equal(await page.locator('.rest-symbol').count(), 0);
+  await control(page,'#delete-position').click();
+  assert.match(await control(page,'#score-count').textContent(), /31 个演奏位置/);
+
+  await control(page,'#add-position').click();
+  assert.match(await control(page,'#score-count').textContent(), /32 个演奏位置/);
+  await control(page,'#delete-position').click();
+  assert.match(await control(page,'#score-count').textContent(), /31 个演奏位置/);
+  await control(page,'#undo').click();
+  assert.match(await control(page,'#score-count').textContent(), /32 个演奏位置/);
+  await control(page,'#redo').click();
+  assert.match(await control(page,'#score-count').textContent(), /31 个演奏位置/);
+  await page.locator('.measure-card').first().locator('[data-event="m1-e1"][data-string="1"]').click();
+
+  await control(page,'#edit-string').selectOption('2');
+  await control(page,'#edit-fret').fill('7');
+  await control(page,'#apply-note').click();
+  assert.equal(await page.locator('.measure-card').first().locator('[data-event="m1-e1"][data-string="2"] .fret-number').textContent(), '7');
+  assert.equal(await page.locator('.has-note').count(), 31);
+  await control(page,'#undo').click();
+  assert.equal(await control(page,'#edit-fret').inputValue(), '5');
+  await control(page,'#redo').click();
+  assert.equal(await control(page,'#edit-fret').inputValue(), '7');
+
+  await control(page,'#sample-picker').selectOption('lullaby');
+  await page.waitForFunction(() => document.querySelector('#score-title').value === 'Lullaby');
+  assert.equal(await page.locator('.has-note').count(), 20);
+  assert.equal(await control(page,'#chord-list button').count(), 2);
+  assert.equal(await control(page,'#editor-badge').textContent(), '同时弹');
+  await control(page,'#edit-string').selectOption('5');
+  await control(page,'#edit-fret').fill('7');
+  await control(page,'#apply-note').click();
+  assert.match(await control(page,'#edit-error').textContent(), /已有音符/);
+  assert.equal(await page.locator('.has-note').count(), 20);
+
+  await control(page,'#add-note').click();
+  await control(page,'#edit-fret').fill('7');
+  await control(page,'#apply-note').click();
+  assert.equal(await control(page,'#chord-list button').count(), 3);
+  assert.equal(await page.locator('.has-note').count(), 21);
+  assert.match(await control(page,'#score-count').textContent(), /16 个演奏位置/);
+  await control(page,'#edit-duration').selectOption('1/16');
+  assert.equal(await control(page,'#chord-list button').count(), 3);
+  await page.keyboard.press('Control+z');
+  assert.equal(await control(page,'#edit-duration').inputValue(), '1/8');
+  await page.keyboard.press('Control+Shift+z');
+  assert.equal(await control(page,'#edit-duration').inputValue(), '1/16');
+
+  const downloadPromise = page.waitForEvent('download');
+  await control(page,'#export-file').click();
+  const download = await downloadPromise;
+  const file = await readFile(await download.path(), 'utf8');
+  const saved = JSON.parse(file);
+  assert.equal(saved.schema, 'tablens.score');
+  assert.match(saved.sources[0].dataUrl, /^data:image\//);
+  assert.equal(saved.sources[0].url, undefined);
+  assert.equal(saved.measures[0].events[0].notes.length, 3);
+  assert.equal(saved.measures[0].events[0].duration, '1/16');
+  await control(page,'#edit-fret').fill('9');
+  await control(page,'#apply-note').click();
+  await control(page,'#file-input').setInputFiles({name: 'reopen.tablens.json', mimeType: 'application/json', buffer: Buffer.from(file)});
+  await page.waitForFunction(() => document.querySelector('#edit-fret').value === '7');
+  assert.equal(await page.locator('.has-note').count(), 21);
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('#score-title').value === 'Lullaby');
+  assert.equal(await control(page,'#sample-picker').inputValue(), 'lullaby');
+  assert.equal(await page.locator('.has-note').count(), 21);
+
+  await control(page,'#sample-picker').selectOption('duvet');
+  await page.waitForFunction(() => document.querySelector('#score-title').value === 'Duvet');
+  assert.equal(await control(page,'#edit-fret').inputValue(), '7');
+  await page.evaluate(() => localStorage.removeItem('tablens.sample.duvet'));
+  await control(page,'#sample-picker').selectOption('lullaby');
+  await page.waitForFunction(() => document.querySelector('#score-title').value === 'Lullaby');
+  await control(page,'#sample-picker').selectOption('duvet');
+  await page.waitForFunction(() => document.querySelector('#score-title').value === 'Duvet');
+  assert.equal(await control(page,'#edit-fret').inputValue(), '5');
+  await mkdir('app/.runtime', {recursive: true});
+  await page.screenshot({path: 'app/.runtime/tablens-desktop.png', fullPage: true});
+  await page.setViewportSize({width: 1100, height: 900});
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
+  assert.deepEqual(errors, []);
+  console.log('PASS: insert before/after, removable rest, TAB editing, chords, undo/redo, save/reopen and desktop layout.');
+} finally { await browser.close(); }

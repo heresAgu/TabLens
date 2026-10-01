@@ -1,0 +1,418 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Guitar TAB visual observations, v1",
+  "type": "object",
+  "properties": {
+    "schema_version": {
+      "const": "tab-symbols-v1"
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        },
+        "tempo_bpm": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 400
+        },
+        "tempo_unit": {
+          "enum": [
+            "quarter",
+            null
+          ]
+        },
+        "time_signature": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 64
+              },
+              "minItems": 2,
+              "maxItems": 2
+            }
+          ]
+        },
+        "capo": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 24
+        },
+        "string_labels_high_to_low": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 2000
+              },
+              "minItems": 6,
+              "maxItems": 6
+            }
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "tempo_bpm",
+        "tempo_unit",
+        "time_signature",
+        "capo",
+        "string_labels_high_to_low"
+      ],
+      "additionalProperties": false
+    },
+    "measures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100000
+          },
+          "rhythm_mode": {
+            "enum": [
+              "single_sequence",
+              "multiple_voices",
+              "unknown"
+            ]
+          },
+          "completeness": {
+            "enum": [
+              "complete",
+              "pickup",
+              "unknown"
+            ]
+          },
+          "string_rows": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "string": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 6
+                },
+                "notes": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "column": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "maximum": 256
+                      },
+                      "fret": {
+                        "type": [
+                          "integer",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 36
+                      }
+                    },
+                    "required": [
+                      "column",
+                      "fret"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "minItems": 0,
+                  "maxItems": 256
+                }
+              },
+              "required": [
+                "string",
+                "notes"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 6,
+            "maxItems": 6
+          },
+          "unassigned_notes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "string": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 6
+                },
+                "column": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 256
+                },
+                "fret": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 0,
+                  "maximum": 36
+                },
+                "reason": {
+                  "type": "string",
+                  "maxLength": 2000
+                }
+              },
+              "required": [
+                "string",
+                "column",
+                "fret",
+                "reason"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0,
+            "maxItems": 256
+          },
+          "columns": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "index": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 256
+                },
+                "kind": {
+                  "enum": [
+                    "notes",
+                    "rest",
+                    "unknown"
+                  ]
+                },
+                "rhythm": {
+                  "type": "object",
+                  "properties": {
+                    "stem_present": {
+                      "type": [
+                        "boolean",
+                        "null"
+                      ]
+                    },
+                    "beam_count": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "flag_count": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 6
+                    },
+                    "dot_count": {
+                      "type": [
+                        "integer",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "note_shape": {
+                      "enum": [
+                        "whole",
+                        "half",
+                        null
+                      ]
+                    },
+                    "rest_symbol": {
+                      "enum": [
+                        "whole",
+                        "half",
+                        "quarter",
+                        "eighth",
+                        "sixteenth",
+                        "thirty_second",
+                        "sixty_fourth",
+                        null
+                      ]
+                    },
+                    "unsupported_marks": {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "maxLength": 2000
+                      },
+                      "minItems": 0,
+                      "maxItems": 64
+                    }
+                  },
+                  "required": [
+                    "stem_present",
+                    "beam_count",
+                    "flag_count",
+                    "dot_count",
+                    "note_shape",
+                    "rest_symbol",
+                    "unsupported_marks"
+                  ],
+                  "additionalProperties": false
+                },
+                "uncertain_items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "minItems": 0,
+                  "maxItems": 64
+                }
+              },
+              "required": [
+                "index",
+                "kind",
+                "rhythm",
+                "uncertain_items"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 1,
+            "maxItems": 256
+          },
+          "connections": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "from_column": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 256
+                },
+                "to_column": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 256
+                },
+                "string": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "minimum": 1,
+                  "maximum": 6
+                },
+                "mark": {
+                  "enum": [
+                    "curve",
+                    "straight_line",
+                    "H",
+                    "P",
+                    "slide_symbol",
+                    "other"
+                  ]
+                },
+                "text": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 2000
+                },
+                "uncertain_items": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "maxLength": 2000
+                  },
+                  "minItems": 0,
+                  "maxItems": 64
+                }
+              },
+              "required": [
+                "from_column",
+                "to_column",
+                "string",
+                "mark",
+                "text",
+                "uncertain_items"
+              ],
+              "additionalProperties": false
+            },
+            "minItems": 0,
+            "maxItems": 128
+          },
+          "uncertain_items": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 2000
+            },
+            "minItems": 0,
+            "maxItems": 64
+          }
+        },
+        "required": [
+          "number",
+          "rhythm_mode",
+          "completeness",
+          "string_rows",
+          "unassigned_notes",
+          "columns",
+          "connections",
+          "uncertain_items"
+        ],
+        "additionalProperties": false
+      },
+      "minItems": 1,
+      "maxItems": 32
+    },
+    "uncertain_items": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 2000
+      },
+      "minItems": 0,
+      "maxItems": 64
+    }
+  },
+  "required": [
+    "schema_version",
+    "metadata",
+    "measures",
+    "uncertain_items"
+  ],
+  "additionalProperties": false
+}

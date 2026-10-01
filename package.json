@@ -1,0 +1,27 @@
+{
+  "name": "tablens-local",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test app/tests/core.test.js app/tests/playback.test.js app/tests/guitar.test.js app/tests/dynamics.test.js app/tests/recognition.test.js app/tests/notation.test.js app/tests/selection.test.js app/tests/techniques.test.js app/tests/ornaments.test.js",
+    "test:ui": "node app/tests/browser.mjs",
+    "test:workspace": "node app/tests/workspace-browser.mjs",
+    "test:direct": "node app/tests/direct-browser.mjs",
+    "test:selection": "node app/tests/selection-browser.mjs",
+    "test:recognition": "node app/tests/recognition-browser.mjs",
+    "test:playback": "node app/tests/playback-browser.mjs",
+    "test:practice": "node app/tests/practice-browser.mjs",
+    "test:sustain": "node app/tests/sustain-browser.mjs",
+    "test:dynamics": "node app/tests/dynamics-browser.mjs",
+    "test:volume": "node app/tests/volume-browser.mjs",
+    "test:measures": "node app/tests/measures-browser.mjs",
+    "test:techniques": "node app/tests/techniques-browser.mjs",
+    "test:ornaments": "node app/tests/ornaments-browser.mjs",
+    "test:library": "node app/tests/library-delete-browser.mjs",
+    "test:public": "node app/tests/public-browser.mjs"
+  },
+  "devDependencies": {
+    "playwright": "^1.63.0"
+  }
+}

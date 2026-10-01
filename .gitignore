@@ -1,0 +1,52 @@
+# Dependencies and generated Python files
+node_modules/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Local secrets and machine settings
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.log
+*.tmp
+.DS_Store
+Thumbs.db
+
+# Runtime data and personal scores
+/app/.runtime/
+/experiments/.runtime/
+/乐谱库/
+/乐谱图片/
+/*.tablens.json
+
+# Local media and externally sourced music/scores
+/Guitar.stereo.1644.1/
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+/*.pdf
+/*.mp3
+/*.wav
+/*.aif
+/*.aiff
+/*.lnk
+
+# Experiment outputs; keep experiment source code and reusable prompts
+/experiments/runs/
+/experiments/baidu_trial/
+/experiments/control_results/
+/experiments/samples/
+/experiments/baselines/
+/experiments/audio_techniques/
+/experiments/library_delete_backup_20261001/
+/experiments/*.json
+!/experiments/symbol_schema.json
+/experiments/*RESULTS*.md
