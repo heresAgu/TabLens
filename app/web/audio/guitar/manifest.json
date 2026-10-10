@@ -244,14 +244,16 @@
     {
       "string": 5,
       "midi": 45,
-      "frequency": 107.67401981578381,
+      "frequency": 122.4763780051555,
       "url": "/audio/guitar/s5-45.wav",
       "source": "Guitar.mf.sulA.A2B2.aif",
-      "sourceStart": 0.1244,
-      "duration": 6.6094,
-      "tuningCents": -37.0,
+      "sourceStart": 23.6,
+      "duration": 3.8,
+      "tuningCents": -14.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1",
+      "sourceMidi": 47
     },
     {
       "string": 5,
@@ -263,7 +265,8 @@
       "duration": 3.5374,
       "tuningCents": -12.0,
       "attackTrimMs": 24.94,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -272,10 +275,11 @@
       "url": "/audio/guitar/s5-47.wav",
       "source": "Guitar.mf.sulA.A2B2.aif",
       "sourceStart": 23.6,
-      "duration": 4.8677,
+      "duration": 3.8,
       "tuningCents": -14.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -284,10 +288,11 @@
       "url": "/audio/guitar/s5-48.wav",
       "source": "Guitar.mf.sulA.C3B3.aif",
       "sourceStart": 0.0311,
-      "duration": 7.9101,
+      "duration": 3.8,
       "tuningCents": -21.5,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -296,10 +301,11 @@
       "url": "/audio/guitar/s5-49.wav",
       "source": "Guitar.mf.sulA.C3B3.aif",
       "sourceStart": 13.1551,
-      "duration": 8.6716,
+      "duration": 3.8,
       "tuningCents": -16.5,
       "attackTrimMs": 0.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -308,10 +314,11 @@
       "url": "/audio/guitar/s5-50.wav",
       "source": "Guitar.mf.sulA.C3B3.aif",
       "sourceStart": 24.7554,
-      "duration": 7.2881,
+      "duration": 3.8,
       "tuningCents": -25.5,
       "attackTrimMs": 10.98,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -320,10 +327,11 @@
       "url": "/audio/guitar/s5-51.wav",
       "source": "Guitar.mf.sulA.C3B3.aif",
       "sourceStart": 36.4889,
-      "duration": 9.6259,
+      "duration": 3.8,
       "tuningCents": -24.0,
       "attackTrimMs": 107.76,
-      "noiseReduced": true
+      "noiseReduced": true,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -332,10 +340,11 @@
       "url": "/audio/guitar/s5-52.wav",
       "source": "Guitar.mf.sulA.C3B3.aif",
       "sourceStart": 46.1779,
-      "duration": 6.0206,
+      "duration": 3.8,
       "tuningCents": -21.0,
       "attackTrimMs": 0.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -344,10 +353,11 @@
       "url": "/audio/guitar/s5-53.wav",
       "source": "Guitar.mf.sulA.C3B3.aif",
       "sourceStart": 54.8163,
-      "duration": 5.6485,
+      "duration": 3.8,
       "tuningCents": -19.0,
       "attackTrimMs": 2.99,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -359,7 +369,8 @@
       "duration": 2.453,
       "tuningCents": -31.0,
       "attackTrimMs": 3.99,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -371,7 +382,8 @@
       "duration": 1.247,
       "tuningCents": -31.5,
       "attackTrimMs": 2.99,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -383,7 +395,8 @@
       "duration": 1.0543,
       "tuningCents": -33.5,
       "attackTrimMs": 3.99,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -395,7 +408,8 @@
       "duration": 0.4032,
       "tuningCents": -15.5,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -407,7 +421,8 @@
       "duration": 2.1722,
       "tuningCents": -12.0,
       "attackTrimMs": 8.98,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -419,7 +434,8 @@
       "duration": 3.5884,
       "tuningCents": -14.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -431,7 +447,8 @@
       "duration": 2.6509,
       "tuningCents": -12.5,
       "attackTrimMs": 3.99,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -440,10 +457,11 @@
       "url": "/audio/guitar/s5-61.wav",
       "source": "Guitar.mf.sulA.C4E4.aif",
       "sourceStart": 9.7455,
-      "duration": 5.5797,
+      "duration": 3.8,
       "tuningCents": -16.5,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -455,7 +473,8 @@
       "duration": 1.4856,
       "tuningCents": -37.5,
       "attackTrimMs": 2.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -467,7 +486,8 @@
       "duration": 0.5552,
       "tuningCents": -24.0,
       "attackTrimMs": 2.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 5,
@@ -479,7 +499,8 @@
       "duration": 1.0744,
       "tuningCents": -28.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 2,
@@ -956,10 +977,11 @@
       "url": "/audio/guitar/s6-48.wav",
       "source": "Guitar.mf.sulE.C3B3.aif",
       "sourceStart": 0.0767,
-      "duration": 8.0503,
+      "duration": 3.8,
       "tuningCents": -33.5,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -968,10 +990,11 @@
       "url": "/audio/guitar/s6-49.wav",
       "source": "Guitar.mf.sulE.C3B3.aif",
       "sourceStart": 9.793,
-      "duration": 7.9934,
+      "duration": 3.8,
       "tuningCents": -42.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -980,10 +1003,11 @@
       "url": "/audio/guitar/s6-50.wav",
       "source": "Guitar.mf.sulE.C3B3.aif",
       "sourceStart": 25.667,
-      "duration": 10.0,
+      "duration": 3.8,
       "tuningCents": -34.0,
       "attackTrimMs": 0.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -992,10 +1016,11 @@
       "url": "/audio/guitar/s6-51.wav",
       "source": "Guitar.mf.sulE.C3B3.aif",
       "sourceStart": 38.0368,
-      "duration": 9.2855,
+      "duration": 3.8,
       "tuningCents": -29.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1004,10 +1029,11 @@
       "url": "/audio/guitar/s6-52.wav",
       "source": "Guitar.mf.sulE.C3B3.aif",
       "sourceStart": 49.4286,
-      "duration": 6.7173,
+      "duration": 3.8,
       "tuningCents": -21.0,
       "attackTrimMs": 0.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1019,7 +1045,8 @@
       "duration": 3.2442,
       "tuningCents": -37.5,
       "attackTrimMs": 2.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1028,10 +1055,11 @@
       "url": "/audio/guitar/s6-54.wav",
       "source": "Guitar.mf.sulE.C3B3.aif",
       "sourceStart": 65.3099,
-      "duration": 7.1363,
+      "duration": 3.8,
       "tuningCents": -40.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1043,7 +1071,8 @@
       "duration": 1.8952,
       "tuningCents": -37.5,
       "attackTrimMs": 0.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1055,7 +1084,8 @@
       "duration": 1.7164,
       "tuningCents": -26.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1064,10 +1094,11 @@
       "url": "/audio/guitar/s6-57.wav",
       "source": "Guitar.mf.sulE.C3B3.aif",
       "sourceStart": 88.0388,
-      "duration": 5.3054,
+      "duration": 3.8,
       "tuningCents": -48.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1079,7 +1110,8 @@
       "duration": 0.9571,
       "tuningCents": -22.0,
       "attackTrimMs": 3.99,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1091,7 +1123,8 @@
       "duration": 2.2112,
       "tuningCents": -9.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1100,10 +1133,11 @@
       "url": "/audio/guitar/s6-40.wav",
       "source": "Guitar.mf.sulE.E2B2.aif",
       "sourceStart": 0.0889,
-      "duration": 7.0629,
+      "duration": 3.8,
       "tuningCents": -35.5,
       "attackTrimMs": 2.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1112,10 +1146,11 @@
       "url": "/audio/guitar/s6-41.wav",
       "source": "Guitar.mf.sulE.E2B2.aif",
       "sourceStart": 10.9167,
-      "duration": 9.9571,
+      "duration": 3.8,
       "tuningCents": -32.5,
       "attackTrimMs": 42.9,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1124,10 +1159,11 @@
       "url": "/audio/guitar/s6-42.wav",
       "source": "Guitar.mf.sulE.E2B2.aif",
       "sourceStart": 22.7836,
-      "duration": 5.8234,
+      "duration": 3.8,
       "tuningCents": -31.5,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1139,7 +1175,8 @@
       "duration": 3.6263,
       "tuningCents": -43.5,
       "attackTrimMs": 0.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1148,10 +1185,11 @@
       "url": "/audio/guitar/s6-44.wav",
       "source": "Guitar.mf.sulE.E2B2.aif",
       "sourceStart": 45.75,
-      "duration": 3.9407,
+      "duration": 3.8,
       "tuningCents": -26.0,
       "attackTrimMs": 3.99,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1163,7 +1201,8 @@
       "duration": 2.4401,
       "tuningCents": -37.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1172,10 +1211,11 @@
       "url": "/audio/guitar/s6-46.wav",
       "source": "Guitar.mf.sulE.E2B2.aif",
       "sourceStart": 64.0549,
-      "duration": 4.0724,
+      "duration": 3.8,
       "tuningCents": -32.0,
       "attackTrimMs": 1.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 6,
@@ -1184,10 +1224,11 @@
       "url": "/audio/guitar/s6-47.wav",
       "source": "Guitar.mf.sulE.E2B2.aif",
       "sourceStart": 73.2595,
-      "duration": 9.2178,
+      "duration": 3.8,
       "tuningCents": -26.5,
       "attackTrimMs": 2.0,
-      "noiseReduced": false
+      "noiseReduced": false,
+      "bassTreatment": "clear-sustain-c1"
     },
     {
       "string": 3,

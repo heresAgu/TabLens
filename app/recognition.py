@@ -156,9 +156,11 @@ class RecognitionService:
         source_id = value.get('sourceId') or f'page-{identifier}'
         if not isinstance(source_id, str) or len(source_id) > 120:
             raise ValueError('原图编号无效')
-        document = {'id': identifier, 'source': {'id': source_id, 'name': str(value.get('name', '上传谱图'))[:160],
-                     'width': image.width, 'height': image.height, 'url': f'/api/recognition/images/{identifier}'},
-                    'segments': segments}
+        source = {'id': source_id, 'name': str(value.get('name', '上传谱图'))[:160],
+                  'width': image.width, 'height': image.height, 'url': f'/api/recognition/images/{identifier}'}
+        if type(value.get('pdfPageNumber')) is int and 1 <= value['pdfPageNumber'] <= 100 and isinstance(value.get('pdfName'), str):
+            source['originPdf'] = {'name': value['pdfName'][:160], 'page': value['pdfPageNumber']}
+        document = {'id': identifier, 'source': source, 'segments': segments}
         with self.lock:
             self.prepared[identifier] = document
         return document

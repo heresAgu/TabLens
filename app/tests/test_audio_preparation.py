@@ -9,6 +9,7 @@ import numpy as np
 APP = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(APP))
 from prepare_guitar import remove_subbass, attack_offset, refine_sample, reduce_background
+from bass_processing import process_bass_sample
 
 
 class AudioPreparationTests(unittest.TestCase):
@@ -22,6 +23,57 @@ class AudioPreparationTests(unittest.TestCase):
         self.assertLess(abs(cleaned.mean()), 1)
         self.assertLess(np.sqrt(np.mean((cleaned[:, 0] - tone) ** 2)), 2)
         np.testing.assert_array_equal(cleaned[:, 0], cleaned[:, 1])
+
+    def test_bass_treatment_keeps_tone_and_suppresses_tail_noise(self):
+        rate = 8000
+        time = np.arange(rate * 3) / rate
+        rng = np.random.default_rng(456)
+        tone = .12 * np.sin(2 * np.pi * 82.4 * time) * np.exp(-2 * time)
+        noise = rng.normal(0, .003, len(time))
+        original = np.column_stack([tone + noise, tone + noise])
+        treated = process_bass_sample(original, rate, 82.4, 6)
+        self.assertEqual(treated.shape, original.shape)
+        self.assertGreater(np.sqrt(np.mean(treated[rate:rate * 2] ** 2)),
+                           np.sqrt(np.mean(original[rate:rate * 2] ** 2)))
+        self.assertLess(abs(treated[-1]).max(), 1e-8)
+        self.assertLess(abs(treated).max(), 1)
+        window = np.hanning(rate)
+        frequencies = np.fft.rfftfreq(rate, 1 / rate)
+        before = abs(np.fft.rfft(original[rate:rate * 2, 0] * window)) ** 2
+        after = abs(np.fft.rfft(treated[rate:rate * 2, 0] * window)) ** 2
+        audible = (frequencies > 40) & (frequencies < 3000)
+        harmonic = np.zeros(len(frequencies), dtype=bool)
+        for order in range(1, 37):
+            center = 82.4 * order
+            if center > 3000:
+                break
+            harmonic |= abs(frequencies - center) < max(7, center * .015)
+        before_noise_ratio = before[audible & ~harmonic].sum() / before[audible].sum()
+        after_noise_ratio = after[audible & ~harmonic].sum() / after[audible].sum()
+        self.assertLess(after_noise_ratio, before_noise_ratio * 0.6)
+
+    def test_bass_samples_are_treated_and_keep_stereo_format(self):
+        manifest = json.loads((APP / 'web/audio/guitar/manifest.json').read_text(encoding='utf8'))
+        bass = [sample for sample in manifest['samples'] if sample['string'] in (5, 6)]
+        self.assertEqual(len(bass), 40)
+        for sample in bass:
+            self.assertEqual(sample['bassTreatment'], 'clear-sustain-c1')
+            with wave.open(str(APP / 'web' / sample['url'].lstrip('/'))) as reader:
+                self.assertEqual(reader.getnchannels(), 2)
+                self.assertEqual(reader.getframerate(), 44100)
+                self.assertAlmostEqual(sample['duration'], reader.getnframes() / 44100, places=3)
+                self.assertLessEqual(sample['duration'], 3.8)
+
+    def test_open_a_uses_same_string_source_with_correct_tuning_metadata(self):
+        manifest = json.loads((APP / 'web/audio/guitar/manifest.json').read_text(encoding='utf8'))
+        source = next(s for s in manifest['samples'] if s['string'] == 5 and s['midi'] == 47)
+        target = next(s for s in manifest['samples'] if s['string'] == 5 and s['midi'] == 45)
+        self.assertEqual(target['sourceMidi'], 47)
+        self.assertEqual(target['frequency'], source['frequency'])
+        self.assertEqual((APP / 'web' / target['url'].lstrip('/')).read_bytes(),
+                         (APP / 'web' / source['url'].lstrip('/')).read_bytes())
+        self.assertGreater(440 * 2 ** ((45 - 69) / 12) / target['frequency'], 0.85)
+        self.assertLess(440 * 2 ** ((45 - 69) / 12) / target['frequency'], 0.95)
 
     def test_fourth_string_second_fret_has_tonal_audio_not_subbass(self):
         manifest = json.loads((APP / 'web/audio/guitar/manifest.json').read_text(encoding='utf8'))

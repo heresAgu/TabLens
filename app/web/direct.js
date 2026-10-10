@@ -109,7 +109,7 @@ export function setupDirectEditing({getScore,getSelection,commit,choose,chooseMe
       // Confirm before rerendering, then restore the intended click destination.
       // Otherwise the SVG under the pointer disappears during input blur.
       const cell=event.target.closest('.tab-cell[data-event]');
-      const destination=event.target.closest('[data-direct-action],[data-position],[data-column-position],[data-rhythm],[data-empty-measure],[data-add-measure-position],[data-select-measure]');
+      const destination=event.target.closest('[data-direct-action],[data-position],[data-column-position],[data-rhythm],[data-strum-action],[data-chord-diagram],[data-empty-measure],[data-add-measure-position],[data-select-measure]');
       const measure=event.target.closest('.measure-card');
       const data=destination?{...destination.dataset}:null;
       const selection=cell?{eventId:cell.dataset.event,noteId:cell.dataset.note,string:Number(cell.dataset.string)}:null;

@@ -17,11 +17,12 @@ async function api(path, value) {
 }
 const readImage = file => new Promise((resolve, reject) => {
   const reader = new FileReader(); reader.onload = () => resolve(reader.result);
-  reader.onerror = () => reject(new Error('无法读取图片')); reader.readAsDataURL(file);
+  reader.onerror = () => reject(new Error('无法读取文件')); reader.readAsDataURL(file);
 });
 
-export function recognitionDialog(apply) {
+export function recognitionDialog(apply, attachManual) {
   let image = null, box = null, prepared = null, job = null, candidate = null, target = null;
+  let pdfSession = null;
   let busy = false, analysing = false, drag = null, generation = 0, timer = null, candidateSelection = null;
   let retained = null, candidatePreparedId = null;
   const status = message => { $('recognition-status').textContent = message; };
@@ -34,6 +35,9 @@ export function recognitionDialog(apply) {
     $('recognition-cancel').disabled = !busy || job?.state === 'cancelling';
     $('recognition-apply').disabled = busy || !candidate?.measures.length;
     $('recognition-replace').disabled = busy || !target || candidate?.measures.length !== 1;
+    $('recognition-append').disabled = busy || !!target || !candidate?.measures.length;
+    $('recognition-manual').disabled = busy || analysing || !image || !!target;
+    $('pdf-page').disabled = busy || analysing;
     const count=selectedIds().length;
     $('recognition-estimate').textContent = prepared ? count ? `所选 ${count} 段，最多 ${1 + 2 * count} 次模型调用：页头一次，每段分格读取与独立逐弦核对各一次。不自动重试。` : '未选小节，不会发起模型调用。' : '';
     for (const input of $('recognition-segments').querySelectorAll('input')) input.disabled = busy || input.dataset.readable !== 'true';
@@ -86,16 +90,54 @@ export function recognitionDialog(apply) {
     try { await api('config', {key:''}); $('api-key').value=''; await config(); status('密钥已清除'); }
     catch(error) { status(error.message); }
   });
-  $('recognition-file').addEventListener('change', async event => {
-    const file = event.target.files[0]; if (!file) return;
+  async function loadPdfPage(number) {
+    if (!pdfSession || busy || analysing) return;
+    analysing=true;controls();status(`正在渲染PDF第 ${number} 页…`);
     try {
-      if (file.size > 20_000_000) throw new Error('图片请控制在20MB以内');
-      const dataUrl = await readImage(file), decoded = new Image(); decoded.src = dataUrl; await decoded.decode();
-      if (decoded.naturalWidth * decoded.naturalHeight > 24_000_000) throw new Error('图片请控制在2400万像素以内');
-      image = {dataUrl, name:file.name, width:decoded.naturalWidth, height:decoded.naturalHeight};
-      prepared=null; candidate=null; box=null; target=null; $('recognition-result').replaceChildren();
-      segments(); status('可以整图分析，也可以先切换到框选区域后拖动选择。');
-    } catch(error) { status(error.message); }
+      const page=await api('pdf/render',{id:pdfSession.id,pageNumber:number});
+      image={id:`pdf-${pdfSession.id}-${number}`,dataUrl:page.dataUrl,
+        name:`${pdfSession.name} · 第 ${number} 页`,pdfName:pdfSession.name,pdfPageNumber:number,width:page.width,height:page.height};
+      $('pdf-page').value=String(number);
+      $('pdf-page-status').textContent=`共 ${pdfSession.pageCount} 页 · 当前第 ${number} 页；每页分别分析、识别并确认。`;
+      prepared=null;candidate=null;retained=null;candidatePreparedId=null;box=null;target=null;
+      $('recognition-mode').value='whole';$('recognition-result').replaceChildren();
+      segments();status(`PDF 第 ${number} 页已打开；分析图片不会调用模型。`);
+    }catch(error){image=null;prepared=null;candidate=null;segments();status(error.message);}
+    finally{analysing=false;controls();}
+  }
+  $('recognition-file').addEventListener('change', async event => {
+    const file=event.target.files[0];if(!file)return;
+    try {
+      if(file.size>20_000_000)throw new Error('文件请控制在20MB以内');
+      if(file.type==='application/pdf'||/\.pdf$/i.test(file.name)){
+        analysing=true;controls();status('正在打开PDF，尚未调用识图模型…');
+        const dataUrl=await readImage(file);
+        const session=await api('pdf/open',{pdfDataUrl:dataUrl});
+        pdfSession={...session,name:file.name};
+        $('pdf-page').replaceChildren();
+        for(let number=1;number<=session.pageCount;number++){
+          const option=document.createElement('option');option.value=String(number);option.textContent=`第 ${number} 页`;
+          $('pdf-page').append(option);
+        }
+        $('pdf-page-controls').hidden=false;
+        analysing=false;await loadPdfPage(1);
+      }else{
+        pdfSession=null;$('pdf-page-controls').hidden=true;
+        const dataUrl=await readImage(file),decoded=new Image();decoded.src=dataUrl;await decoded.decode();
+        if(decoded.naturalWidth*decoded.naturalHeight>24_000_000)throw new Error('图片请控制在2400万像素以内');
+        image={dataUrl,name:file.name,width:decoded.naturalWidth,height:decoded.naturalHeight};
+        prepared=null;candidate=null;box=null;target=null;$('recognition-result').replaceChildren();
+        segments();status('可以整图分析，也可以先切换到框选区域后拖动选择。');
+      }
+    }catch(error){status(error.message);}
+    finally{analysing=false;controls();}
+  });
+  $('pdf-page').addEventListener('change',event=>{
+    const number=Number(event.target.value);
+    if(candidate?.measures.length&&!confirm('当前页的识别候选尚未加入乐谱。切换页面会丢弃候选结果，继续吗？')){
+      event.target.value=String(image?.pdfPageNumber??number);return;
+    }
+    loadPdfPage(number);
   });
   $('recognition-mode').addEventListener('change', () => {
     prepared=null;candidate=null;retained=null;candidatePreparedId=null;
@@ -127,7 +169,8 @@ export function recognitionDialog(apply) {
     $('recognition-result').replaceChildren();controls(); status('正在定位六条弦线、小节线和下方符干…');
     try {
       prepared = await api('prepare', {imageDataUrl:image.dataUrl, name:image.name,
-        box:$('recognition-mode').value==='region'?box:null, sourceId:image.id});
+        box:$('recognition-mode').value==='region'?box:null, sourceId:image.id,
+        pdfName:image.pdfName,pdfPageNumber:image.pdfPageNumber});
       segments(); status(`定位到 ${prepared.segments.length} 段。请核对绿色边框并勾选；无符干或被截断的段落不能自动识别。`);
     } catch(error) { prepared=null; status(error.message); }
     finally { analysing=false; controls(); }
@@ -198,13 +241,28 @@ export function recognitionDialog(apply) {
     try { job=await api(`jobs/${job.id}/cancel`,{}); controls(); status('已请求取消；不会再启动后续模型调用。已发出的调用仍可能计费。'); }
     catch(error) { status(error.message); }
   });
-  async function accept(local) {
-    if (busy || !candidate?.measures.length) return;
-    try { await apply(structuredClone(candidate),local?target:null); $('recognition-dialog').close(); }
-    catch(error) { status(error.message); }
+  async function accept(action) {
+    if(busy||!candidate?.measures.length)return;
+    try{
+      await apply(structuredClone(candidate),action==='replace'?target:null,action==='append');
+      const current=Number($('pdf-page').value);
+      if(action!=='replace'&&pdfSession&&current<pdfSession.pageCount){
+        await loadPdfPage(current+1);
+      }else $('recognition-dialog').close();
+    }catch(error){status(error.message);}
   }
-  $('recognition-apply').addEventListener('click',()=>accept(false));
-  $('recognition-replace').addEventListener('click',()=>accept(true));
+  $('recognition-manual').addEventListener('click',async()=>{
+    if(busy||analysing||!image||target)return;
+    try{
+      await attachManual(structuredClone(image));
+      const current=Number($('pdf-page').value);
+      if(pdfSession&&current<pdfSession.pageCount)await loadPdfPage(current+1);
+      else $('recognition-dialog').close();
+    }catch(error){status(error.message);}
+  });
+  $('recognition-apply').addEventListener('click',()=>accept('new'));
+  $('recognition-append').addEventListener('click',()=>accept('append'));
+  $('recognition-replace').addEventListener('click',()=>accept('replace'));
   $('recognition-close').addEventListener('click',()=>{
     $('api-key').value=''; $('recognition-dialog').close();
   });
@@ -214,6 +272,7 @@ export function recognitionDialog(apply) {
     try {
       await config();
       if (options && !busy && !analysing) {
+        pdfSession=null;$('pdf-page-controls').hidden=true;
         image=options.page;box=options.box;target=options.target;prepared=null;candidate=null;
         $('recognition-mode').value='region';$('recognition-file').value='';
         $('recognition-result').replaceChildren();segments(); status('已框选当前小节。分析后识别，检查候选再决定是否替换。');

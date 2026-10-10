@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {importScore, clone, mergePosition, splitPosition, acceptRecognition, timingWarning} from '../web/core.js';
+import {importScore, clone, mergePosition, splitPosition, acceptRecognition, appendRecognition, newScore, timingWarning} from '../web/core.js';
 const score = () => importScore({metadata:{title:'练习',time_signature:[4,4]},measures:[{number:1,events:[
   {duration:'1/8',notes:[{string:1,fret:0}]},{duration:'3/16',notes:[{string:2,fret:12}]}
 ]}]});
@@ -43,4 +43,26 @@ test('measure warnings do not fill missing timing and allow incomplete excerpts'
   assert.match(timingWarning(s,m),/不自动补齐/);assert.deepEqual(m,before);
   m.allowIncomplete=true;assert.equal(timingWarning(s,m),'');
   m.events[0].duration=null;assert.equal(timingWarning(s,m),'节奏待设置');
+});
+
+test('PDF page candidates append in order without rewriting earlier edits',()=>{
+  const first=score();first.sources=[{id:'pdf-page-1',name:'score.pdf · 第 1 页',dataUrl:'data:image/png;base64,AA=='}];
+  first.measures[0].events[0].notes[0].fret=7;first.tempo=93;
+  const page=score();page.sources=[{id:'pdf-page-2',name:'score.pdf · 第 2 页',dataUrl:'data:image/png;base64,AA=='}];
+  page.measures[0].id='second-measure';page.measures[0].number=1;
+  page.measures[0].events.forEach((event,index)=>{event.id='second-event-'+index;event.notes.forEach((note,i)=>note.id=`second-note-${index}-${i}`);
+    event.notes.forEach(note=>note.source={pageId:'pdf-page-2',box:[10,20,30,40]});});
+  const result=appendRecognition(first,page);
+  assert.equal(result.measures.length,2);assert.equal(result.measures[1].number,2);
+  assert.equal(result.measures[1].originalNumber,1);
+  assert.equal(result.measures[0].events[0].notes[0].fret,7);assert.equal(result.tempo,93);
+  assert.equal(result.sources[1].id,'pdf-page-2');assert.equal(first.measures.length,1);
+  assert.throws(()=>appendRecognition(result,page),/原图页编号重复/);
+});
+
+test('appending the first recognized PDF page replaces only the starter blank measure',()=>{
+  const empty=newScore('未命名乐谱'),candidate=score();
+  const result=appendRecognition(empty,candidate);
+  assert.equal(result.measures.length,1);
+  assert.equal(result.measures[0].events.length,2);
 });

@@ -3,18 +3,21 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TabLens · 吉他谱工作台</title>
+  <link rel="icon" type="image/svg+xml" href="/logo.svg">
+  <script src="/theme.js"></script>
   <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/theme.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="TabLens首页"><span class="brand-icon">≋</span><span>TabLens<small>吉他谱工作台</small></span></a>
+    <a class="brand" href="/" aria-label="TabLens首页"><img class="brand-icon" src="/logo.svg" alt="" width="39" height="39"><span>TabLens<small>吉他谱工作台</small></span></a>
     <span class="stage">02 / 编辑与跟练</span>
-    <div class="top-actions"><button id="new-score">新建</button><button id="open-library">乐谱库</button><button id="import-image">导入谱图</button><button id="open-file" title="打开外部乐谱文件；选择窗口位置由浏览器决定，已保存乐谱可直接从乐谱库打开">打开文件</button><button id="save-as">另存为</button><button id="export-file">导出</button><button id="save-file" class="primary">保存</button></div>
+    <div class="top-actions"><button id="theme-toggle" type="button" aria-label="切换主题">跟随系统</button><button id="new-score">新建</button><button id="open-library">乐谱库</button><button id="import-image">导入谱图</button><button id="open-file" title="打开外部乐谱文件；选择窗口位置由浏览器决定，已保存乐谱可直接从乐谱库打开">打开文件</button><button id="save-as">另存为</button><button id="export-file">导出</button><button id="save-file" class="primary">保存</button></div>
   </header>
   <main>
     <section class="score-heading">
-      <div><span class="eyebrow">你的练习乐谱</span><input id="score-title" aria-label="乐谱名称" maxlength="120"><p id="score-info"></p></div>
-      <div class="heading-right"><label class="sample-label" for="sample-picker">打开谱例</label><select id="sample-picker"><option value="" disabled>正在检查本机谱例…</option></select><span id="save-status" role="status">正在打开乐谱…</span></div>
+      <div class="score-identity"><span class="eyebrow">你的练习乐谱</span><input id="score-title" aria-label="乐谱名称" maxlength="120"><div class="score-meta"><p id="score-info"></p><span id="save-status" role="status">正在打开乐谱…</span></div></div>
+      <div class="heading-right"><div class="view-controls"><label>工作模式 <select id="layout-mode" aria-label="工作模式"><option value="review">校谱</option><option value="practice">练习</option><option value="compose">编曲</option></select></label><label class="sample-label" for="sample-picker">打开谱例</label><select id="sample-picker"><option value="" disabled>正在检查本机谱例…</option></select><button id="layout-reset" class="small" title="恢复默认分栏大小">重置分栏</button></div></div>
     </section>
     <section class="panel practice-panel" aria-label="播放与节奏设置">
       <div class="practice-controls"><button id="play" class="primary">▶ 播放</button><button id="play-selected" disabled>▶ 从选中位置播放</button><button id="stop">■ 停止</button><button id="preview">试听当前位置</button><label>速度 BPM <input id="tempo" type="number" min="20" max="300" value="80"></label><label>变调夹 <input id="capo" type="number" min="0" max="24" value="0"></label><span id="play-time">0:00 / 0:00</span><button id="practice-settings">练习 / 批量设置</button></div>
@@ -28,17 +31,20 @@
     </section>
     <div class="workspace">
       <section class="score-panel panel">
-        <div class="panel-heading"><div><h1>可编辑六线谱</h1><p>从左到右弹，同一列的数字同时弹。</p></div><div class="history-actions"><button id="undo" title="撤销 Ctrl+Z" aria-label="撤销">↶</button><button id="redo" title="重做 Ctrl+Shift+Z" aria-label="重做">↷</button></div></div>
+        <div class="panel-heading"><div><h1>可编辑六线谱</h1><p>从左到右弹；同一列可以同时弹，也可以设置扫弦。</p></div><div class="history-actions"><button id="undo" title="撤销 Ctrl+Z" aria-label="撤销">↶</button><button id="redo" title="重做 Ctrl+Shift+Z" aria-label="重做">↷</button></div></div>
         <div class="tab-legend"><span><i class="legend-note"></i> 点击数字修改弦与品位</span><span><i class="legend-column"></i> 空白处拖动框选 · Ctrl增减选择 · Shift选连续位置</span></div>
         <div id="selection-tools" hidden><span id="selection-count"></span><span id="selection-scope"></span><select id="selection-duration" aria-label="选段时值"><option value="1/8">八分</option><option value="1/16">十六分</option><option value="1/4">四分</option><option value="1/32">三十二分</option><option value="1/2">二分</option><option value="1">全音符</option><option value="3/8">附点四分</option><option value="3/16">附点八分</option></select><button id="selection-apply-duration">改时值</button><button data-selection-dynamics="soft">轻</button><button data-selection-dynamics="normal">中</button><button data-selection-dynamics="strong">重</button><button id="selection-delete" class="danger">删除所选音</button><button id="selection-clear">取消选择</button></div>
         <div id="tab-view" aria-label="可编辑TAB"></div>
         <div class="score-footer"><span id="score-count"></span><span>节奏待设时，音符顺序仍然保留</span></div>
       </section>
+      <div id="workspace-resizer" class="workspace-resizer" role="separator" aria-label="调整乐谱与右侧工作区宽度" aria-orientation="vertical" tabindex="0"></div>
       <aside class="side-column">
         <section class="panel source-panel"><div class="panel-heading compact"><div><h2>原图对照</h2><p id="source-description">选中音符，核对原来的位置。</p></div><button id="source-toggle" class="small">整页</button><button id="source-enlarge" class="small">放大</button></div><div class="source-canvas"><svg id="source-view" role="img" aria-label="原谱与当前音符位置"></svg><p id="source-empty" hidden>自编小节，无原图。可直接编辑左侧TAB。</p></div><button id="attach-image" class="text-button">关联 / 更换原图</button></section>
+        <div id="side-resizer" class="side-resizer" role="separator" aria-label="调整原图与编辑区高度" aria-orientation="horizontal" tabindex="0"></div>
         <section class="panel editor-panel"><div class="panel-heading compact"><div><h2 id="editor-title">选一个音符</h2><p id="editor-position">点击左侧数字或空白弦线开始编辑。</p></div><span id="editor-badge" class="badge">音符</span></div>
           <form id="note-form"><div class="field-pair"><label>弦<select id="edit-string" aria-label="修改弦号"><option value="1">1弦 · 最上方</option><option value="2">2弦</option><option value="3">3弦</option><option value="4">4弦</option><option value="5">5弦</option><option value="6">6弦 · 最下方</option></select></label><label>品位<input id="edit-fret" type="number" min="0" max="36" step="1" aria-label="修改品位"><small>0 表示空弦</small></label></div><button class="primary full" id="apply-note" type="submit">应用修改</button><p id="edit-error" class="error" role="alert"></p></form>
           <div class="event-notes"><span class="field-caption">这个位置一起弹的音</span><div id="chord-list"></div></div>
+          <div class="rhythm-field chord-editor"><label for="chord-preset">快速填入和弦指型</label><select id="chord-preset" aria-label="和弦指型"></select><div class="chord-actions"><button id="apply-chord" type="button">填入此位置</button><button id="copy-chord" type="button">复制到下一位置</button></div><label for="chord-label">谱上显示的和弦名（可修改）</label><input id="chord-label" maxlength="24" placeholder="例如 Am"><small>填入会替换当前列音符；复制会替换下一列音符，若到末尾则新建待设节奏的位置。可撤销。指型按标准调弦设计；有变调夹时显示的是指型名。改弦品后请核对名称。</small></div>
           <div class="editor-actions"><button id="add-note">＋ 同时加一个音</button><button id="delete-note" class="danger">删除选中音</button></div>
           <div class="rhythm-field" id="technique-controls"><label for="note-technique">从上一颗同弦音到这里</label><select id="note-technique"><option value="">普通拨弦</option><option value="hammer">击弦 h</option><option value="pull">勾弦 p</option><option value="slide">滑弦 /</option></select><small id="technique-origin">选中音符后设置技巧。</small><div id="slide-controls" hidden><label for="slide-ratio">滑动时间：两音间隔的 <output id="slide-ratio-value">20%</output></label><input id="slide-ratio" type="range" min="10" max="90" step="5" value="20" aria-label="滑弦快慢"><div class="slide-presets"><button type="button" data-slide-ratio="20">快滑</button><button type="button" data-slide-ratio="60">标准</button><button type="button" data-slide-ratio="85">慢滑</button></div><small>滑动起点可调，始终在目标音的拍点到达。</small></div></div>
           <div class="rhythm-field ornament-editor"><label>短前倚音 <small>小音先响，主音仍落在原拍点</small></label>
@@ -55,6 +61,7 @@
           </div>
           <div class="rhythm-field"><label for="event-dynamics">整个位置的力度</label><select id="event-dynamics"><option value="soft">轻</option><option value="normal">中</option><option value="strong">重</option></select><button id="unify-dynamics" class="small">统一此位置力度</button><small>修改整列会统一这一列的力度，可再单独强调旋律音。</small><label for="note-dynamics" class="note-dynamics-label">选中音符的力度</label><select id="note-dynamics"><option value="inherit">跟随位置</option><option value="soft">轻</option><option value="normal">中</option><option value="strong">重</option></select><small>默认中等力度；轻重音暂通过音量变化实现。</small></div>
           <div class="rhythm-field"><label for="edit-duration">这个位置的节奏</label><select id="edit-duration"><option value="">待设置</option><option value="1/4">四分音符</option><option value="1/8">八分音符</option><option value="1/16">十六分音符</option><option value="1/32">三十二分音符</option><option value="1/2">二分音符</option><option value="1">全音符</option><option value="3/8">附点四分音符</option><option value="3/16">附点八分音符</option></select><small>修改节奏不会改变弦、品位或同时弹组合。</small></div>
+          <div class="rhythm-field strum-editor"><label for="strum-direction">扫弦</label><select id="strum-direction"><option value="">同时弹（不扫弦）</option><option value="down">下扫：6弦 → 1弦</option><option value="up">上扫：1弦 → 6弦</option></select><label for="strum-speed">扫过各弦的时间</label><select id="strum-speed"><option value="auto">自动（按节奏）</option><option value="0.08">快扫</option><option value="0.16">标准</option><option value="0.28">慢扫</option></select><small>只扫这个位置已有的音符；自动速度随节奏变化，手动选择后保持固定。多个扫弦动作各占一个演奏位置。</small></div>
           <div class="rhythm-field"><label for="event-sustain">这个位置的延音</label><select id="event-sustain"><option value="inherit">跟随全谱</option><option value="natural">自然延音</option><option value="timed">按时值止音</option></select><small>自然延音时，换弹其他弦不会截断尾音；同弦新音接替旧音。休止位置不触发新音。</small></div>
           <button id="add-position-before" class="text-button">在此前插入一个演奏位置</button>
           <button id="add-position" class="text-button">在此后插入一个演奏位置</button>
@@ -73,7 +80,9 @@
   </main>
   <input id="file-input" type="file" accept=".json,.tablens" hidden><input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" hidden>
   <div id="toast" class="toast" role="status" hidden></div>
-  <dialog id="library-dialog"><div class="panel-heading"><div><h2>本机乐谱库</h2><p id="library-directory"></p></div><button id="library-close">关闭</button></div><p id="library-status" role="status"></p><div id="library-list"></div></dialog>
+  <dialog id="library-dialog"><div class="panel-heading"><div><h2>本机乐谱库</h2><p id="library-directory"></p></div><button id="library-close">关闭</button></div>
+    <div id="library-filters"><input id="library-query" type="search" placeholder="搜索歌名" aria-label="搜索歌名"><label>修改时间<select id="library-period"><option value="all">全部时间</option><option value="7">最近 7 天</option><option value="30">最近 30 天</option><option value="90">最近 90 天</option></select></label><label>排序<select id="library-sort"><option value="newest">最近修改</option><option value="oldest">最早修改</option><option value="title">歌名 A–Z</option></select></label></div>
+    <p id="library-filter-result" role="status"></p><p id="library-status" role="status"></p><div id="library-list"></div></dialog>
   <dialog id="new-score-dialog"><h2>新建乐谱</h2><form id="new-score-form"><label>名称<input id="new-score-title" value="未命名编曲" maxlength="120" required></label><p>初始设置：4/4拍，80 BPM，标准调弦，无变调夹。拍号、速度及变调夹可在工作台修改。</p><button type="submit" class="primary">开始写谱</button><button type="button" id="new-score-cancel">取消</button></form></dialog>
   <dialog id="save-as-dialog"><h2>另存为独立编曲</h2><form id="save-as-form"><label>名称<input id="save-as-title" maxlength="120" required></label><p>保留当前乐谱，另存一份可独立修改的版本。</p><button type="submit" class="primary" id="save-as-confirm">另存为</button><button type="button" id="save-as-cancel">取消</button><p id="save-as-error" class="error"></p></form></dialog>
   <dialog id="practice-dialog"><div class="panel-heading"><h2>练习与批量设置</h2><button id="practice-close">关闭</button></div><div id="practice-settings-content"></div></dialog>
@@ -86,13 +95,14 @@
       <label>API密钥<input id="api-key" type="password" autocomplete="off" placeholder="填入新密钥；留空保持已连接密钥"></label>
       <button id="api-connect">连接 / 更新设置</button><button id="api-disconnect">清除密钥</button><span id="api-state"></span>
     </details>
-    <div class="import-controls"><input id="recognition-file" type="file" accept="image/png,image/jpeg,image/webp"><label>识别范围<select id="recognition-mode"><option value="whole">整张图片</option><option value="region">框选区域</option></select></label><button id="recognition-prepare">分析图片（不调用模型）</button></div><small class="file-picker-hint">文件窗口由浏览器记住上次打开的位置，不会自动跳到项目目录。</small>
-    <p>仅支持清晰、水平、电脑排版的六线TAB。框选会扩展到相交的完整小节。节奏先保留为待设置。</p>
+    <div class="import-controls"><input id="recognition-file" type="file" accept="image/png,image/jpeg,image/webp,application/pdf,.pdf"><label>识别范围<select id="recognition-mode"><option value="whole">整张图片</option><option value="region">框选区域</option></select></label><button id="recognition-prepare">分析图片（不调用模型）</button></div><div id="pdf-page-controls" class="pdf-page-controls" hidden><label>PDF 页面 <select id="pdf-page" aria-label="选择PDF页面"></select></label><span id="pdf-page-status"></span></div><small class="file-picker-hint">文件窗口由浏览器记住上次打开的位置，不会自动跳到项目目录。</small>
+    <p>也可以把谱图与 <a href="/api/agent-template" download="AGENT_IMPORT_TEMPLATE.md">Agent 读谱模板</a>交给外部 Agent；将它生成的 JSON 保存后，点顶部“打开文件”导入。</p>
+    <p>支持 PNG/JPG/WebP 和 PDF；PDF 先选页，再按图片分析。仅自动读取清晰、水平、带下方符干的六线TAB；其他记号可将本页作为原图建空小节，再手动录入。节奏先保留为待设置。</p>
     <div class="recognition-layout"><div class="recognition-preview"><svg id="recognition-image" aria-label="拖动框选谱图"></svg></div><div>
       <div id="recognition-segments"></div><p id="recognition-estimate"></p>
-      <button id="recognition-start" class="primary" disabled>开始识别所选小节</button><button id="recognition-cancel" disabled>取消任务</button>
+      <button id="recognition-start" class="primary" disabled>开始识别所选小节</button><button id="recognition-cancel" disabled>取消任务</button><button id="recognition-manual" disabled>本页作原图，建空小节</button>
       <p id="recognition-status" role="status"></p><div id="recognition-result"></div>
-      <button id="recognition-apply" disabled>作为新谱打开（可撤销）</button><button id="recognition-replace" disabled>替换当前小节（可撤销）</button>
+      <button id="recognition-apply" disabled>作为新谱打开（可撤销）</button><button id="recognition-append" disabled>追加到当前谱（可撤销）</button><button id="recognition-replace" disabled>替换当前小节（可撤销）</button>
     </div></div>
   </dialog>
   <script type="module" src="/app.js"></script>

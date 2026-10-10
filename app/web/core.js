@@ -1,5 +1,6 @@
 import {validateTechniques} from './techniques.js';
 import {validateOrnaments} from './ornaments.js';
+import {AGENT_FORMAT, normalizeAgentDraft} from './agent-format.js';
 // Stable, portable score data. All views edit this model, never the picture.
 export const SCHEMA = 'tablens.score';
 export const clone = value => structuredClone(value);
@@ -54,6 +55,14 @@ export function validate(score) {
       checkDynamics(event.dynamics);
       if (event.sustain !== undefined && !['natural', 'timed'].includes(event.sustain)) throw new Error('音符延音设置无效');
       if (!Array.isArray(event.notes)) throw new Error('音符列表无效');
+      if (event.chordPending !== undefined && (event.chordPending !== true || !event.chordName))
+        throw new Error('待确认和弦标记无效');
+      if (event.chordName !== undefined && (typeof event.chordName !== 'string' || !event.chordName.trim() || event.chordName.length > 24 || event.kind === 'rest' || (event.notes.length < 2 && !event.chordPending)))
+        throw new Error('和弦名称须对应至少两颗音，或标记为待确认指型；名称不超过24字');
+      if (event.strum !== undefined && (!event.strum || !['down', 'up'].includes(event.strum.direction) ||
+        !Number.isFinite(event.strum.spreadBeats) || event.strum.spreadBeats < 0.04 || event.strum.spreadBeats > 0.5 ||
+        (event.strum.speedMode !== undefined && event.strum.speedMode !== 'auto') || (event.notes.length < 2 && !event.chordPending)))
+        throw new Error('扫弦须设置在至少两颗音的演奏位置，跨度为0.04–0.5拍');
       const strings = new Set();
       for (const note of event.notes) {
         checkDynamics(note.dynamics);
@@ -76,6 +85,9 @@ export function validate(score) {
 }
 
 export function importScore(raw) {
+  const agentDraft = raw?.format === AGENT_FORMAT;
+  if (agentDraft) raw = normalizeAgentDraft(raw);
+  else if (raw?.format) throw new Error('不支持的 Agent 文件格式：' + raw.format);
   if (raw?.schema === SCHEMA) {const score=validate(clone(raw));renumberMeasures(score);return score;}
   if (!Array.isArray(raw?.measures)) throw new Error('文件中没有乐谱数据');
   const meta = raw.metadata ?? {};
@@ -86,15 +98,19 @@ export function importScore(raw) {
     title: raw.preview_title ?? meta.title ?? '未命名乐谱',
     tempo: meta.tempo_bpm ?? null, timeSignature: meta.time_signature ?? null,
     capo: meta.capo ?? null, tuningMidi: [64, 59, 55, 50, 45, 40], tuningOrigin: 'standard-default',
-    sources: source ? [clone(source)] : [], measures: []};
+    sources: source ? [clone(source)] : [], issues: raw.uncertain_items ?? [], measures: []};
   for (const [mi, measure] of raw.measures.entries()) {
     if (!Array.isArray(measure.events)) throw new Error('请打开包含音符位置的识别结果');
     const number = measure.number ?? mi + 1;
-    const normalized = {id: `measure-${mi + 1}`, number, issues: measure.uncertain_items ?? [], events: []};
+    const normalized = {id: `measure-${mi + 1}`, number, issues: measure.uncertain_items ?? [],
+      allowIncomplete: measure.allow_incomplete === true, ...(agentDraft ? {agentImported: true} : {}), events: []};
     for (const [ei, event] of measure.events.entries()) {
       const eventId = `m${mi + 1}-e${ei + 1}`;
       const item = {id: eventId, kind: event.kind ?? (event.notes?.length ? 'notes' : 'unknown'),
         duration: event.duration ?? null, issues: event.uncertain_items ?? [], notes: []};
+      if (event.strum !== undefined) item.strum = clone(event.strum);
+      if (event.chordName !== undefined) item.chordName = event.chordName;
+      if (event.chordPending === true) item.chordPending = true;
       for (const [ni, note] of (event.notes ?? []).entries()) {
         const box = note.source_box_in_row ?? note.source?.cell_source_box;
         const mapped = box && crop ? [box[0] + crop[0], box[1] + crop[1], box[2] + crop[0], box[3] + crop[1]] : null;
@@ -141,6 +157,7 @@ export function removeNote(score, eventId, noteId) {
   if (!found?.note) throw new Error('先选中要删除的音符');
   found.event.notes = found.event.notes.filter(n => n.id !== noteId);
   if (!found.event.notes.length) found.event.kind = 'unknown';
+  if (found.event.notes.length < 2 && !found.event.chordPending) { delete found.event.strum; delete found.event.chordName; }
 }
 
 export function addPosition(score, measureId, afterEventId, placement = 'after') {
@@ -250,6 +267,7 @@ export function mergePosition(score, eventId) {
   found.event.notes.push(...next.notes);
   found.event.notes.sort((a, b) => a.string - b.string);
   found.event.duration = duration;
+  delete found.event.strum; delete found.event.chordName;
   found.event.issues = [...(found.event.issues ?? []), ...(next.issues ?? [])];
   if (found.event.sustain !== next.sustain) found.event.issues.push('合并前延音设置不同，请核对；当前采用前一个位置的设置');
   found.measure.events.splice(index + 1, 1);
@@ -261,7 +279,9 @@ export function splitPosition(score, eventId, noteId) {
   if (!found?.note || found.event.notes.length < 2) throw new Error('先选中同时弹组合里要拆到下一位置的音');
   const duration = found.event.duration === null ? null : rational(found.event.duration, 2);
   const next = {...clone(found.event), id: id('event'), duration, notes: [found.note]};
+  delete next.strum; delete next.chordName;
   found.event.notes = found.event.notes.filter(note => note.id !== noteId);
+  if (found.event.notes.length < 2) { delete found.event.strum; delete found.event.chordName; }
   found.event.duration = duration;
   found.measure.events.splice(found.measure.events.indexOf(found.event) + 1, 0, next);
   return next.id;
@@ -289,6 +309,34 @@ export function acceptRecognition(score, candidate, targetId = null, expected = 
     if (existing < 0) result.sources.push(clone(source));
     else result.sources[existing] = clone(source);
   }
+  return validate(result);
+}
+
+export function appendRecognition(score, candidate) {
+  validate(score);
+  validate(candidate);
+  if (!candidate.measures.length) throw new Error('候选结果没有可追加的小节');
+  const isEmpty = score.measures.length === 1 && !score.measures[0].events.length && !score.sources.length;
+  if (isEmpty) return clone(candidate);
+  const result = clone(score);
+  const knownSources = new Set(result.sources.map(source => source.id));
+  const knownIds = new Set(result.measures.flatMap(measure => [measure.id,
+    ...measure.events.flatMap(event => [event.id, ...event.notes.map(note => note.id)])]));
+  for (const source of candidate.sources) {
+    if (knownSources.has(source.id)) throw new Error('原图页编号重复，请重新分析这一页');
+    result.sources.push(clone(source));
+  }
+  for (const original of candidate.measures) {
+    const measure = clone(original);
+    if (knownIds.has(measure.id) || measure.events.some(event => knownIds.has(event.id) ||
+      event.notes.some(note => knownIds.has(note.id)))) throw new Error('音符编号重复，请重新识别这一页');
+    measure.originalNumber ??= measure.number;
+    result.measures.push(measure);
+  }
+  if(result.sources.reduce((size,source)=>size+(source.dataUrl?.length??0),0)>40_000_000)
+    throw new Error('原图累计超过40MB，请先另存当前乐谱，再处理剩余页面');
+  result.issues = [...new Set([...(result.issues ?? []), ...(candidate.issues ?? [])])];
+  renumberMeasures(result);
   return validate(result);
 }
 

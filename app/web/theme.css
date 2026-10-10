@@ -1,0 +1,169 @@
+/* Dark colors apply only when the chosen theme resolves to dark. Source images stay untouched. */
+:root { color-scheme: light; }
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --green: #6bc79d;
+  --line: #3b3d42;
+  --muted: #969ba4;
+  --text: #bfc3ca;
+  --text-strong: #ebedf0;
+  color: var(--text);
+  background: #121316;
+}
+
+:root[data-theme="dark"] .topbar,
+:root[data-theme="dark"] .panel,
+:root[data-theme="dark"] dialog,
+:root[data-theme="dark"] .rhythm-menu,
+:root[data-theme="dark"] .chord-popover {
+  color: var(--text);
+  background: #1d1f23;
+  border-color: var(--line);
+}
+:root[data-theme="dark"] dialog:not(#recognition-dialog),
+:root[data-theme="dark"] #recognition-dialog,
+:root[data-theme="dark"] #measure-overview-dialog { color: var(--text); background: #1d1f23; }
+
+:root[data-theme="dark"] button:not(.primary),
+:root[data-theme="dark"] input:not([type="checkbox"]):not([type="range"]),
+:root[data-theme="dark"] select {
+  color: var(--text);
+  background: #2a2c31;
+  border-color: #4a4d53;
+}
+:root[data-theme="dark"] input::placeholder { color: #8f939c; }
+:root[data-theme="dark"] button:not(.primary):hover { background: #383b40; }
+:root[data-theme="dark"] .primary { color: #122019; }
+:root[data-theme="dark"] .primary:hover { background: #80d9b0; }
+:root[data-theme="dark"] a { color: #7cd6aa; }
+:root[data-theme="dark"] .brand,
+:root[data-theme="dark"] #score-title,
+:root[data-theme="dark"] .panel-heading h1,
+:root[data-theme="dark"] .panel-heading h2,
+:root[data-theme="dark"] .chord-popover strong { color: var(--text-strong); }
+:root[data-theme="dark"] .measure-head,
+:root[data-theme="dark"] .practice-controls label,
+:root[data-theme="dark"] .editor-page > label,
+:root[data-theme="dark"] dialog form > label { color: var(--text); }
+:root[data-theme="dark"] .brand small,
+:root[data-theme="dark"] .stage,
+:root[data-theme="dark"] .eyebrow,
+:root[data-theme="dark"] #save-status,
+:root[data-theme="dark"] .field-pair label,
+:root[data-theme="dark"] .field-pair small,
+:root[data-theme="dark"] .field-caption,
+:root[data-theme="dark"] .rhythm-field label,
+:root[data-theme="dark"] .rhythm-field small,
+:root[data-theme="dark"] .practice-panel p,
+:root[data-theme="dark"] .practice-panel small,
+:root[data-theme="dark"] .practice-options label,
+:root[data-theme="dark"] .batch-controls span,
+:root[data-theme="dark"] #play-time,
+:root[data-theme="dark"] .score-footer,
+:root[data-theme="dark"] .measure-state,
+:root[data-theme="dark"] .bottom-note,
+:root[data-theme="dark"] #selection-scope,
+:root[data-theme="dark"] #range-status,
+:root[data-theme="dark"] .measure-overview-hint,
+:root[data-theme="dark"] .measure-overview-preview span,
+:root[data-theme="dark"] .chord-popover p { color: var(--muted); }
+:root[data-theme="dark"] .brand small,
+:root[data-theme="dark"] .stage,
+:root[data-theme="dark"] .bottom-note,
+:root[data-theme="dark"] .measure-state { color: #898e98; }
+
+:root[data-theme="dark"] .tab-legend,
+:root[data-theme="dark"] .measure-head,
+:root[data-theme="dark"] .source-canvas,
+:root[data-theme="dark"] #api-settings,
+:root[data-theme="dark"] .recognition-preview,
+:root[data-theme="dark"] #recognition-result p,
+:root[data-theme="dark"] #selection-tools {
+  background: #25272b;
+  border-color: var(--line);
+}
+:root[data-theme="dark"] .tab-legend { color: var(--muted); }
+:root[data-theme="dark"] .measure-card,
+:root[data-theme="dark"] .measure-overview-row { border-color: var(--line); }
+:root[data-theme="dark"] .measure-overview-row.active,
+:root[data-theme="dark"] .selected-measure > .measure-head,
+:root[data-theme="dark"] .editor-tabs button.active,
+:root[data-theme="dark"] #chord-list button.active,
+:root[data-theme="dark"] .position-actions button.active,
+:root[data-theme="dark"] .volume-controls button[aria-pressed="true"] {
+  color: #a2dfb9;
+  background: #29352f;
+  border-color: #53745e;
+}
+:root[data-theme="dark"] .text-button,
+:root[data-theme="dark"] .note-volume-controls output,
+:root[data-theme="dark"] #selection-count,
+:root[data-theme="dark"] .position-actions span { color: #a2d7b2; }
+:root[data-theme="dark"] .badge,
+:root[data-theme="dark"] #chord-list button,
+:root[data-theme="dark"] .measure-insertion button,
+:root[data-theme="dark"] .measure-overview-gap button { color: #a2dfb9; background: #2a2d30; border-color: #4a4d53; }
+:root[data-theme="dark"] .danger,
+:root[data-theme="dark"] .error { color: #f1a597; }
+:root[data-theme="dark"] .measure-insertion::before,
+:root[data-theme="dark"] .measure-insertion::after,
+:root[data-theme="dark"] .measure-overview-gap::before,
+:root[data-theme="dark"] .measure-overview-gap::after { background: var(--line); }
+:root[data-theme="dark"] .workspace-resizer::after,
+:root[data-theme="dark"] .side-resizer::after { background: #73767b; }
+:root[data-theme="dark"] .workspace-resizer:hover,
+:root[data-theme="dark"] .side-resizer:hover,
+:root[data-theme="dark"] .workspace-resizer.dragging,
+:root[data-theme="dark"] .side-resizer.dragging { background: #353a38; }
+
+/* The TAB is an SVG, so its own strokes and number backgrounds need dark values. */
+:root[data-theme="dark"] .string-line { stroke: #7b7e83; }
+:root[data-theme="dark"] .bar-line { stroke: #a5a7ac; }
+:root[data-theme="dark"] .string-label,
+:root[data-theme="dark"] .position-label,
+:root[data-theme="dark"] .duration-label,
+:root[data-theme="dark"] .rest-symbol { fill: #adb0b5; }
+:root[data-theme="dark"] .fret-number { fill: #dfe2e6; }
+:root[data-theme="dark"] .fret-background,
+:root[data-theme="dark"] .grace-background { fill: #1d1f23; }
+:root[data-theme="dark"] .tab-cell:hover .cell-target,
+:root[data-theme="dark"] .position-selector:hover .position-hit,
+:root[data-theme="dark"] .position-selector.active .position-hit,
+:root[data-theme="dark"] .rhythm-symbol:hover .rhythm-hit { fill: #303a34; }
+:root[data-theme="dark"] .tab-cell:hover .fret-background,
+:root[data-theme="dark"] .selected-note .fret-background,
+:root[data-theme="dark"] .selected-cell.selected-note .fret-background,
+:root[data-theme="dark"] .selected-cell .cell-target,
+:root[data-theme="dark"] .selected-rhythm .rhythm-hit,
+:root[data-theme="dark"] .position-selection,
+:root[data-theme="dark"] .event-selection,
+:root[data-theme="dark"] .range-selection { fill: #303238; stroke: #728b79; }
+:root[data-theme="dark"] .append-position-hit { fill: #2a2d30; stroke: #5c7062; }
+:root[data-theme="dark"] .append-position:hover .append-position-hit,
+:root[data-theme="dark"] .append-position:focus .append-position-hit { fill: #343a36; stroke: #82c69b; }
+:root[data-theme="dark"] .selected-note .fret-number,
+:root[data-theme="dark"] .position-selector.active .position-label { fill: #a4e9b9; }
+:root[data-theme="dark"] .tab-cell.playing-note.has-note .fret-background,
+:root[data-theme="dark"] .tab-cell.playing-note.has-note .cell-target { fill: #60452c; }
+:root[data-theme="dark"] .tab-cell.playing-note.has-note .fret-number { fill: #ffd19a; }
+:root[data-theme="dark"] .rhythm-filled { fill: #c8cbd0; }
+:root[data-theme="dark"] .rhythm-open { fill: #1d1f23; stroke: #c8cbd0; }
+:root[data-theme="dark"] .rhythm-stroke,
+:root[data-theme="dark"] .rhythm-beam { stroke: #c8cbd0; }
+:root[data-theme="dark"] .rhythm-unknown { fill: #adb0b5; }
+:root[data-theme="dark"] .chord-name,
+:root[data-theme="dark"] .append-position-label { fill: #9ce4bb; }
+:root[data-theme="dark"] .strum-marker { fill: #ffc17b; }
+:root[data-theme="dark"] .column-handle rect { fill: #81858a; }
+:root[data-theme="dark"] .inline-fret-slot input { color: #b0f0c5; background: #2c3c33; }
+:root[data-theme="dark"] .technique-marker { fill: #8de1b8; stroke: #1d1f23; }
+:root[data-theme="dark"] .grace-number { fill: #a1d9ea; }
+:root[data-theme="dark"] .bend-marker { fill: #f4b867; stroke: #1d1f23; }
+
+:root[data-theme="dark"] .chord-popover svg line { stroke: #aaacb0; }
+:root[data-theme="dark"] .chord-popover svg text { fill: #d2d3d6; }
+:root[data-theme="dark"] .chord-popover svg circle[fill="none"] { stroke: #8edeb0; }
+:root[data-theme="dark"] .chord-popover svg circle:not([fill="none"]) { fill: #69c999; }
+
+#theme-toggle { min-width: 104px; white-space: nowrap; }
+@media (max-width: 1100px) { #theme-toggle { min-width: 0; } }

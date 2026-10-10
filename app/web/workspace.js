@@ -19,9 +19,9 @@ export function setupWorkspace() {
   }
   const content=document.createElement('div');content.className='editor-content';
   const error=$('#edit-error');editor.querySelector('.panel-heading').after(nav,error,content);
-  pages.note.append($('#note-form'),$('.event-notes'),$('.editor-actions'),$('#technique-controls'),$('#apply-grace').closest('.rhythm-field'),$('#bend-semitones').closest('.rhythm-field'));
+  pages.note.append($('#note-form'),$('.event-notes'),$('.chord-editor'),$('.editor-actions'),$('#technique-controls'),$('#apply-grace').closest('.rhythm-field'),$('#bend-semitones').closest('.rhythm-field'));
   pages.expression.append($('#event-dynamics').closest('.rhythm-field'),$('#event-sustain').closest('.rhythm-field'));
-  pages.rhythm.append($('#edit-duration').closest('.rhythm-field'));
+  pages.rhythm.append($('#edit-duration').closest('.rhythm-field'),$('.strum-editor'));
   for(const id of ['add-position-before','add-position','set-rest','delete-position','merge-position','split-position'])pages.rhythm.append($('#'+id));
   const explanation=editor.querySelector(':scope > small');if(explanation)pages.rhythm.append(explanation);
   const meter=$('#time-signature').parentElement;meter.firstChild.textContent='全谱拍号 ';pages.measure.append(meter);

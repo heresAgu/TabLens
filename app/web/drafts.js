@@ -15,6 +15,12 @@ export async function storeDraft(score){
     transaction.oncomplete=resolve;transaction.onerror=()=>reject(transaction.error);
   });
 }
+export async function getDraft(identifier){
+  const db=await database();return new Promise((resolve,reject)=>{
+    const request=db.transaction('scores').objectStore('scores').get(identifier);
+    request.onsuccess=()=>resolve(request.result??null);request.onerror=()=>reject(request.error);
+  });
+}
 export async function listDrafts(){
   const db=await database();return new Promise((resolve,reject)=>{
     const request=db.transaction('scores').objectStore('scores').getAll();

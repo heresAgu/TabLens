@@ -69,13 +69,14 @@ try {
       return source;
     };
     const guitar = createGuitarInstrument();
-    await guitar.prepare(ctx, [{midi: [64, 52], strings: [1, 4]}]);
+    await guitar.prepare(ctx, [{midi: [64, 52, 45, 40], strings: [1, 4, 5, 6]}]);
     guitar(ctx, 64, 0.05, 0.4, 0.15, 1); guitar(ctx, 52, 0.05, 0.4, 0.15, 4);
+    guitar(ctx, 45, 0.30, 0.2, 0.15, 5); guitar(ctx, 40, 0.55, 0.2, 0.15, 6);
     const output = await ctx.startRendering();
     const samples = output.getChannelData(0);
-    return {starts, rates, peak: Math.max(...samples.map(Math.abs)), tail: samples.slice(24000).some(n => n !== 0)};
+    return {starts, rates, peak: Math.max(...samples.map(Math.abs)), tail: samples.slice(38000).some(n => n !== 0)};
   });
-  assert.deepEqual(sampled.starts, [0.05, 0.05]);
+  assert.deepEqual(sampled.starts, [0.05, 0.05, 0.30, 0.55]);
   assert.ok(sampled.rates.every(rate => rate > 0.9 && rate < 1.1));
   assert.ok(sampled.peak > 0.01 && sampled.peak < 1);
   assert.equal(sampled.tail, false);

@@ -32,7 +32,12 @@ try{
   await page.keyboard.press('Backspace');assert.equal((await snapshot()).measures[0].events.length,6);assert.equal(await cell('m1-e1',1).count(),0);
   await page.locator('#undo').click();assert.equal((await snapshot()).measures[0].events[0].notes.length,3);
   await page.locator('[data-position="m1-e1"]').click();await page.locator('[data-direct-action="position-before"]').click();
-  assert.equal((await snapshot()).measures[0].events.length,8);await page.locator('[data-direct-action="delete-position"]').click();assert.equal((await snapshot()).measures[0].events.length,7);
+  assert.equal((await snapshot()).measures[0].events.length,8);
+  const positionLabels=await page.locator('.measure-card').first().locator('.position-label').evaluateAll(nodes=>
+    nodes.map(node=>({text:node.textContent,opacity:getComputedStyle(node).opacity})));
+  assert.deepEqual(positionLabels.map(label=>label.text),Array.from({length:8},(_,index)=>String(index+1)));
+  assert.ok(positionLabels.every(label=>Number(label.opacity)===1),'new and existing position numbers stay visible');
+  await page.locator('[data-direct-action="delete-position"]').click();assert.equal((await snapshot()).measures[0].events.length,7);
   await page.locator('[data-rhythm="m1-e1"]').click();await page.locator('.rhythm-menu [data-duration="1/16"]').click();
   assert.equal((await snapshot()).measures[0].events[0].duration,'1/16');assert.equal((await snapshot()).measures[0].events[0].notes.length,3);
   await page.locator('[data-rhythm="m1-e1"]').click();await page.keyboard.press('Escape');assert.equal(await page.locator('.rhythm-menu').count(),0);

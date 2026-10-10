@@ -10,6 +10,7 @@ from urllib.request import urlopen
 import webbrowser
 import socket
 from recognition import RecognitionService
+from pdf_import import PDFImporter
 from library import ScoreLibrary, LibraryConflict
 
 
@@ -18,6 +19,7 @@ ROOT = APP_DIR.parent
 WEB = APP_DIR / "web"
 PORT = 8765
 RECOGNITION = RecognitionService(APP_DIR / '.runtime' / 'recognition')
+PDF_IMPORTER = PDFImporter()
 LIBRARY = ScoreLibrary(ROOT / '乐谱库')
 SAMPLES = {
     "duvet": {
@@ -67,7 +69,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             size = int(self.headers.get('Content-Length', '0'))
             if size < 1 or size > 60_000_000:
-                raise ValueError('请求为空或图片超过大小限制')
+                raise ValueError('请求为空或文件超过大小限制')
             if self.headers.get('Content-Type', '').split(';')[0] != 'application/json':
                 raise ValueError('请求格式需为JSON')
             value = json.loads(self.rfile.read(size))
@@ -75,6 +77,8 @@ class Handler(BaseHTTPRequestHandler):
             path = urlsplit(self.path).path
             if path == '/api/library/save': return self.json(LIBRARY.save(value))
             if path == '/api/library/delete': return self.json(LIBRARY.delete(value))
+            if path == '/api/recognition/pdf/open': return self.json(PDF_IMPORTER.open(value))
+            if path == '/api/recognition/pdf/render': return self.json(PDF_IMPORTER.render(value))
             if path == '/api/recognition/config': return self.json(RECOGNITION.configure(value))
             if path == '/api/recognition/prepare': return self.json(RECOGNITION.prepare(value))
             if path == '/api/recognition/start': return self.json(RECOGNITION.start(value))
@@ -106,6 +110,8 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == '/api/agent-template':
+            return self.send((ROOT / 'AGENT_IMPORT_TEMPLATE.md').read_bytes(), 'text/markdown; charset=utf-8')
         if path == '/api/library': return self.json(LIBRARY.list())
         if path.startswith('/api/library/'):
             try: return self.json(LIBRARY.read(path.split('/')[-1]))

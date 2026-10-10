@@ -4,10 +4,13 @@ Original files are never modified. NumPy is needed only for preparation.
 """
 import json
 import re
+import shutil
 import struct
 import wave
 from pathlib import Path
 import numpy as np
+
+from bass_processing import process_bass_sample
 
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / 'app/web/audio/guitar'
@@ -205,16 +208,39 @@ def extract(path):
         fade = min(441, len(sample) // 4)
         sample[:44] *= np.linspace(0, 1, 44)[:, None]
         sample[-fade:] *= np.linspace(1, 0, fade)[:, None]
+        pcm = np.clip(sample, -32767, 32767).astype('<i2')
+        if string in (5, 6):
+            treated = process_bass_sample(pcm.astype(np.float64) / 32768, rate, measured, string)
+            pcm = np.clip(np.rint(treated * 32767), -32768, 32767).astype('<i2')
         name = f's{string}-{int(note)}.wav'
         with wave.open(str(OUT / name), 'wb') as writer:
             writer.setnchannels(2); writer.setsampwidth(2); writer.setframerate(rate)
-            writer.writeframes(np.clip(sample, -32767, 32767).astype('<i2').tobytes())
-        result.append({'string': string, 'midi': int(note), 'frequency': measured,
-                       'url': f'/audio/guitar/{name}', 'source': path.name,
-                       'sourceStart': round(start / rate, 4), 'duration': round((end - start) / rate, 4), 'tuningCents': actual_cents,
-                       'attackTrimMs': round(fine_offset * 1000 / rate, 2), 'noiseReduced': denoised})
+            writer.writeframes(pcm.tobytes())
+        entry = {'string': string, 'midi': int(note), 'frequency': measured,
+                 'url': f'/audio/guitar/{name}', 'source': path.name,
+                 'sourceStart': round(start / rate, 4), 'duration': round(len(pcm) / rate, 4),
+                 'tuningCents': actual_cents, 'attackTrimMs': round(fine_offset * 1000 / rate, 2),
+                 'noiseReduced': denoised}
+        if string in (5, 6):
+            entry['bassTreatment'] = 'clear-sustain-c1'
+        result.append(entry)
         previous_start = start
     return result
+
+
+def replace_weak_open_a(samples):
+    """Use the healthy fifth-string B2 take for the weak open-A recording.
+
+    The player uses `frequency` to tune this same-string source down to A2.
+    Keep source metadata explicit so later regeneration remains reproducible.
+    """
+    source = next(item for item in samples if item['string'] == 5 and item['midi'] == 47)
+    target = next(item for item in samples if item['string'] == 5 and item['midi'] == 45)
+    shutil.copyfile(OUT / 's5-47.wav', OUT / 's5-45.wav')
+    for field in ('frequency', 'source', 'sourceStart', 'duration', 'tuningCents',
+                  'attackTrimMs', 'noiseReduced', 'bassTreatment'):
+        target[field] = source[field]
+    target['sourceMidi'] = 47
 
 
 if __name__ == '__main__':
@@ -226,6 +252,7 @@ if __name__ == '__main__':
         print(path.name, len(extracted), 'notes')
     if not samples:
         raise RuntimeError('No local guitar recordings found')
+    replace_weak_open_a(samples)
     manifest = {'name': '本地吉他采样 · mf', 'samples': samples}
     (OUT / 'manifest.json').write_text(json.dumps(manifest, indent=2, ensure_ascii=False), encoding='utf-8')
     print('Prepared', len(samples), 'samples; originals preserved.')

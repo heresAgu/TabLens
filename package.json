@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test app/tests/core.test.js app/tests/playback.test.js app/tests/guitar.test.js app/tests/dynamics.test.js app/tests/recognition.test.js app/tests/notation.test.js app/tests/selection.test.js app/tests/techniques.test.js app/tests/ornaments.test.js",
+    "test": "node --test app/tests/agent-format.test.js app/tests/core.test.js app/tests/playback.test.js app/tests/guitar.test.js app/tests/dynamics.test.js app/tests/recognition.test.js app/tests/notation.test.js app/tests/selection.test.js app/tests/techniques.test.js app/tests/ornaments.test.js app/tests/chords-strum.test.js",
     "test:ui": "node app/tests/browser.mjs",
     "test:workspace": "node app/tests/workspace-browser.mjs",
     "test:direct": "node app/tests/direct-browser.mjs",
@@ -19,7 +19,10 @@
     "test:techniques": "node app/tests/techniques-browser.mjs",
     "test:ornaments": "node app/tests/ornaments-browser.mjs",
     "test:library": "node app/tests/library-delete-browser.mjs",
-    "test:public": "node app/tests/public-browser.mjs"
+    "test:public": "node app/tests/public-browser.mjs",
+    "test:layout-pdf": "node app/tests/layout-pdf-browser.mjs",
+    "test:agent-import": "node app/tests/agent-import-browser.mjs",
+    "test:chords-strum": "node app/tests/chords-strum-browser.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

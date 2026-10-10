@@ -25,6 +25,7 @@ Thumbs.db
 /乐谱库/
 /乐谱图片/
 /*.tablens.json
+/*.agent.json
 
 # Local media and externally sourced music/scores
 /Guitar.stereo.1644.1/

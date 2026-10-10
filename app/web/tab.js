@@ -10,6 +10,33 @@ const el = (tag, attrs = {}, text) => {
 };
 export const durationLabel = value => ({'1': '全音符', '1/2': '二分', '1/4': '四分', '1/8': '八分', '1/16': '十六分', '1/32': '三十二分', '3/8': '附点四分', '3/16': '附点八分'}[value] ?? (value ? value : '待设节奏'));
 
+// A chord name marks a change. Keep every event's label in the score data, but
+// print it only once until the name changes within this measure.
+export function displayedChords(events) {
+  let previous = null;
+  return events.map(event => {
+    if (!event.chordName) return null;
+    const show = event.chordName !== previous;
+    previous = event.chordName;
+    return show ? event.chordName : null;
+  });
+}
+
+export function eventXPositions(events, labels = displayedChords(events)) {
+  const positions = [];
+  let lastLabelRight = 0;
+  for (const [index, label] of labels.entries()) {
+    const halfLabel = label ? Math.max(14, [...label].length * 3.6) : 0;
+    let x = index ? positions[index - 1] + 49 : 86;
+    if (label) {
+      x = Math.max(x, halfLabel + 14, lastLabelRight + halfLabel + 12);
+      lastLabelRight = x + halfLabel;
+    }
+    positions.push(x);
+  }
+  return positions;
+}
+
 export function renderTab(container, score, selected, range = new Set(), {editable=false} = {}) {
   const sameScore=container.dataset.renderedScore===score.id;
   const scrollTop=sameScore?container.scrollTop:0;
@@ -32,7 +59,8 @@ export function renderTab(container, score, selected, range = new Set(), {editab
     head.className = 'measure-head';
     const name = document.createElement('span');
     name.textContent = `第 ${measure.number} 小节`;
-    if(measure.originalNumber!==undefined){name.title=`对应原谱第 ${measure.originalNumber} 小节`;name.dataset.originalNumber=measure.originalNumber;}
+    if(measure.originalNumber!==undefined){const source=score.sources.find(page=>page.id===measure.source?.pageId);
+      name.title=`${source?.name ? source.name+' · ' : ''}识别时第 ${measure.originalNumber} 段`;name.dataset.originalNumber=measure.originalNumber;}
     const state = document.createElement('span');
     state.className = 'measure-state';
     state.textContent = timingWarning(score, measure) || '节奏已设置';
@@ -48,9 +76,13 @@ export function renderTab(container, score, selected, range = new Set(), {editab
     card.append(head);
     const wrap = document.createElement('div');
     wrap.className = 'tab-scroll';
-    const step = 49, left = 62, right = 26, top = 43, gap = 24;
-    const width = Math.max(430, left + (measure.events.length+1) * step + right);
-    const svg = el('svg', {viewBox: `0 0 ${width} 214`, width, height: 214, class: 'tab-staff', 'aria-label': `第${measure.number}小节六线谱`});
+    const left = 62, right = 26, top = 98, gap = 24;
+    const chordLabels = displayedChords(measure.events);
+    const eventXs = eventXPositions(measure.events, chordLabels);
+    const lastLabel = chordLabels.at(-1);
+    const rightPad = Math.max(80, lastLabel ? [...lastLabel].length * 3.6 + 26 : 0);
+    const width = Math.max(430, (eventXs.at(-1) ?? left) + rightPad, left + 210);
+    const svg = el('svg', {viewBox: `0 0 ${width} 275`, width, height: 275, class: 'tab-staff', 'aria-label': `第${measure.number}小节六线谱`});
     for (let string = 1; string <= 6; string++) {
       const y = top + (string - 1) * gap;
       svg.append(el('line', {x1: left - 20, x2: width - right + 2, y1: y, y2: y, class: 'string-line'}));
@@ -67,24 +99,45 @@ export function renderTab(container, score, selected, range = new Set(), {editab
           'aria-label':`空小节，第${string}弦，添加第一个演奏位置`});
         cell.append(el('rect',{x:left,y:top+(string-1)*gap-11,width:width-left-right,height:22,rx:4,class:'cell-target'}));svg.append(cell);
       }
-      svg.append(el('text',{x:left+12,y:192,class:'duration-label'},'空小节 · 点击弦线开始写谱'));
+      svg.append(el('text',{x:left+12,y:247,class:'duration-label'},'空小节 · 点击弦线开始写谱'));
     }
     for (const [index, event] of measure.events.entries()) {
-      const x = left + step * index + step / 2;
+      const x = eventXs[index];
       if (selected?.eventId === event.id) svg.append(el('rect', {x: x - 22, y: top - 17, width: 44, height: 5 * gap + 34, rx: 8, class: selected.kind==='position'?'event-selection position-selection':'event-selection'}));
       if(editable&&selected?.eventId===event.id){
         const handle=el('g',{'data-column-position':event.id,class:'column-handle',tabindex:0,role:'button','aria-label':'选中整个演奏位置'});
         handle.append(el('title',{},'选中整个演奏位置'));
-        handle.append(el('rect',{x:x-20,y:26,width:40,height:6,rx:3}));svg.append(handle);
+        handle.append(el('rect',{x:x-20,y:79,width:40,height:7,rx:3}));svg.append(handle);
       }
       else if (range.has(event.id)) svg.append(el('rect', {x: x - 22, y: top - 17, width: 44, height: 5 * gap + 34, rx: 8, class: selected?.kind==='multi'?'range-selection multi-range':'range-selection'}));
       const position=el('g',{class:`position-selector${selected?.eventId===event.id&&selected?.kind==='position'?' active':''}`,...(editable?{'data-position':event.id,tabindex:0,role:'button','aria-label':`选择第${index+1}个演奏位置`}:{})});
       position.append(el('rect',{x:x-15,y:2,width:30,height:23,rx:5,class:'position-hit'}));
       position.append(el('text', {x, y: 18, 'text-anchor': 'middle', class: 'position-label'}, index + 1));svg.append(position);
+      if (chordLabels[index]) {
+        const chord = el('g', {class: 'chord-trigger', 'data-chord-diagram': event.id,
+          tabindex: editable ? 0 : -1, role: 'button',
+          'aria-label': `${chordLabels[index]}，查看和弦指型`});
+        const halfWidth = Math.max(18, [...chordLabels[index]].length * 3.6 + 5);
+        chord.append(el('rect', {x: x - halfWidth, y: 28, width: halfWidth * 2,
+          height: 22, rx: 5, class: 'chord-hit'}));
+        chord.append(el('text', {x, y: 39, 'text-anchor': 'middle', class: 'chord-name'}, chordLabels[index]));
+        svg.append(chord);
+      }
+      if (event.strum) {
+        const strum = el('g', {class: event.chordPending ? 'strum-trigger pending' : 'strum-trigger', ...(editable ? {
+          'data-position': event.id, tabindex: 0, role: 'button',
+          'aria-label': `${event.strum.direction === 'down' ? '下扫' : '上扫'}，${event.chordPending?'按弦待确认':'选中位置修改扫弦'}`
+        } : {})});
+        strum.append(el('rect', {x: x - 15, y: 51, width: 30, height: 28, rx: 6,
+          class: 'strum-hit'}));
+        strum.append(el('text', {x, y: 73, 'text-anchor': 'middle', class: 'strum-marker'},
+          event.strum.direction === 'down' ? '↓' : '↑'));
+        svg.append(strum);
+      }
       if(editable&&index===measure.events.length-1){
         const add=el('g',{class:'append-position', 'data-direct-action':'append-position','data-measure-id':measure.id,tabindex:0,role:'button','aria-label':`在第${index+1}个演奏位置后添加位置`});
-        add.append(el('rect',{x:x+18,y:1,width:26,height:25,rx:6,class:'append-position-hit'}));
-        add.append(el('text',{x:x+31,y:19,'text-anchor':'middle',class:'append-position-label'},'＋'));
+        add.append(el('rect',{x:x+25,y:1,width:26,height:25,rx:6,class:'append-position-hit'}));
+        add.append(el('text',{x:x+38,y:19,'text-anchor':'middle',class:'append-position-label'},'＋'));
         svg.append(add);
       }
       for (let string = 1; string <= 6; string++) {
@@ -94,6 +147,7 @@ export function renderTab(container, score, selected, range = new Set(), {editab
         const isCellSelected=selected?.kind==='multi'?multiSelected:selected?.kind!=='position'&&selected?.kind!=='rhythm'&&selected?.eventId===event.id&&selected.string===string;
         const cell = el('g', {class: `tab-cell${note ? ` has-note dynamic-${dynamicLevel(event, note)}` : ''}${note&&(note.id===selected?.noteId||multiSelected) ? ' selected-note' : ''}${isCellSelected?' selected-cell':''}`,
           'data-event': event.id, 'data-note': note?.id ?? '', 'data-string': string, 'data-x': x,
+          'data-span': (eventXs[index+1] ?? x+49)-x,
           tabindex: 0, role: 'button', 'aria-label': `${index + 1}位置，第${string}弦${note ? `，${note.fret ?? '未知'}品，${{soft: '轻', normal: '中', strong: '重'}[dynamicLevel(event, note)]}力度` : '，添加音符'}`});
         cell.append(el('rect', {x: x - 21, y: y - 11, width: 42, height: 22, rx: 5, class: 'cell-target'}));
         if (note) {
@@ -125,17 +179,28 @@ export function renderTab(container, score, selected, range = new Set(), {editab
         svg.append(cell);
       }
     }
-    drawRhythms(svg,measure,score.timeSignature,index=>left+step*index+step/2,el,editable);
+    const rhythms=el('g',{transform:'translate(0 55)'});
+    drawRhythms(rhythms,measure,score.timeSignature,index=>eventXs[index],el,editable);
+    svg.append(rhythms);
     if(selected?.kind==='rhythm')svg.querySelector(`[data-rhythm="${CSS.escape(selected.eventId)}"]`)?.classList.add('selected-rhythm');
-    svg.append(el('line', {x1: 0, x2: 0, y1: 25, y2: 177, class: 'playhead', visibility: 'hidden'}));
+    svg.append(el('line', {x1: 0, x2: 0, y1: 69, y2: 269, class: 'playhead', visibility: 'hidden'}));
     wrap.append(svg);
     card.append(wrap);
     if(editable&&selected?.kind==='position'&&measure.events.some(e=>e.id===selected.eventId)){
       const actions=document.createElement('div');actions.className='position-actions';
       const label=document.createElement('span');label.textContent=`位置 ${measure.events.findIndex(e=>e.id===selected.eventId)+1}`;actions.append(label);
+      const current=measure.events.find(e=>e.id===selected.eventId);
+      if(current.notes.length>=2){
+        for(const [direction,text] of [['down','↓ 下扫'],['up','↑ 上扫'],['','同时弹']]){
+          const button=document.createElement('button');button.textContent=text;
+          button.dataset.strumAction=direction;button.dataset.eventId=current.id;
+          button.classList.toggle('active', (current.strum?.direction??'')===direction);
+          actions.append(button);
+        }
+      }
       for(const [action,text] of [['position-before','＋ 前'],['delete-position','× 删除位置'],['position-after','＋ 后']]){
         const button=document.createElement('button');button.textContent=text;button.dataset.directAction=action;button.dataset.eventId=selected.eventId;actions.append(button);
-      }head.after(actions);
+      }head.append(actions);
     }
     container.append(card);
     wrap.scrollLeft=scrollPositions.get(measure.id)??0;
@@ -146,11 +211,12 @@ export function renderTab(container, score, selected, range = new Set(), {editab
   container.scrollTop=scrollTop;
 }
 
-export function updatePlayhead(container, eventId, progress = 0, follow = false, graceNoteId = null) {
+export function updatePlayhead(container, eventId, progress = 0, follow = false, graceNoteId = null, soundingStrings = null) {
   let first = null;
   for (const cell of container.querySelectorAll('[data-event]')) {
     const active = cell.dataset.event === eventId;
-    cell.classList.toggle('playing-note', active && !graceNoteId);
+    cell.classList.toggle('playing-note', active && !graceNoteId &&
+      (soundingStrings === null || (cell.dataset.note && soundingStrings.includes(Number(cell.dataset.string)))));
     if (active && !first) first = cell;
   }
   for (const marker of container.querySelectorAll('[data-grace]'))
@@ -158,7 +224,7 @@ export function updatePlayhead(container, eventId, progress = 0, follow = false,
   for (const line of container.querySelectorAll('.playhead')) line.setAttribute('visibility', 'hidden');
   if (!first) return;
   const svg = first.closest('svg'), line = svg.querySelector('.playhead');
-  const x = Number(first.dataset.x) - 20 + Math.min(1, Math.max(0, progress)) * 40;
+  const x = Number(first.dataset.x) - 20 + Math.min(1, Math.max(0, progress)) * Number(first.dataset.span);
   line.setAttribute('x1', x); line.setAttribute('x2', x); line.setAttribute('visibility', 'visible');
   if (follow) {
     const wrap = svg.closest('.tab-scroll'), center = Number(first.dataset.x);

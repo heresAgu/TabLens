@@ -2,3 +2,4 @@ numpy
 requests
 Pillow
 opencv-python-headless
+pypdfium2>=4.30,<6

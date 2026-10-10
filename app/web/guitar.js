@@ -23,7 +23,7 @@ export function createGuitarInstrument(status = () => {}) {
   const buffers = new Map();
   const key = (midi, string) => chooseSample(samples, midi, string);
   const instrument = (context, midi, when, duration, volume, string,
-    {offset = 0, transitions = [], destination = context.destination} = {}) => {
+    {offset = 0, transitions = [], attack: strokeAttack = 0.004, destination = context.destination} = {}) => {
     const voices = [], end = when + Math.max(0.025, duration);
     const baseVolume = Math.max(volume, ...transitions.map(item => item.volume ?? volume), 0.001);
     const chainGain = context.createGain();
@@ -81,7 +81,7 @@ export function createGuitarInstrument(status = () => {}) {
     const graceSlide = !!transitions[0]?.graceSlide;
     let active = [makeVoice(currentMidi, when, end, baseVolume,
       offset > 0 && transitions.length ? 0.055 + Math.max(0, offset - lastAt) : graceSlide ? 0.055 : offset,
-      graceSlide ? 0.018 : 0.004)];
+      graceSlide ? 0.018 : strokeAttack)];
     const addBodyLayer = (transition, index, arrival, targetRatio) => {
       const main = active[0];
       const first = bodyRms(main.buffer, 0.08 * main.rate, 0.18 * main.rate);
