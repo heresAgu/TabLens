@@ -56,6 +56,10 @@ try {
 
   await control(page,'#sample-picker').selectOption('lullaby');
   await page.waitForFunction(() => document.querySelector('#score-title').value === 'Lullaby');
+  await page.locator('#layout-mode [data-mode="practice"]').click();
+  await mkdir('app/.runtime',{recursive:true});
+  await page.screenshot({path:'app/.runtime/practice-original.png'});
+  await page.locator('#layout-mode [data-mode="review"]').click();
   assert.equal(await page.locator('.has-note').count(), 20);
   assert.equal(await control(page,'#chord-list button').count(), 2);
   assert.equal(await control(page,'#editor-badge').textContent(), '同时弹');
@@ -91,7 +95,7 @@ try {
   await control(page,'#edit-fret').fill('9');
   await control(page,'#apply-note').click();
   await control(page,'#file-input').setInputFiles({name: 'reopen.tablens.json', mimeType: 'application/json', buffer: Buffer.from(file)});
-  await page.waitForFunction(() => document.querySelector('#edit-fret').value === '7');
+  await page.waitForFunction(() => document.querySelector('#edit-fret').value === '9');
   assert.equal(await page.locator('.has-note').count(), 21);
   await page.reload();
   await page.waitForFunction(() => document.querySelector('#score-title').value === 'Lullaby');

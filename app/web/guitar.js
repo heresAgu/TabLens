@@ -19,18 +19,26 @@ function bodyRms(buffer, start, end) {
 }
 
 export function createGuitarInstrument(status = () => {}) {
-  let samples, manifestPromise;
+  let samples, manifestPromise, softManifestPromise;
+  let softSamples = [];
   const buffers = new Map();
   const key = (midi, string) => chooseSample(samples, midi, string);
+  const softKey = (midi, string) => {
+    const sameString = softSamples.filter(sample => sample.string === string);
+    return sameString.length ? chooseSample(sameString, midi, string) : null;
+  };
   const instrument = (context, midi, when, duration, volume, string,
-    {offset = 0, transitions = [], attack: strokeAttack = 0.004, destination = context.destination} = {}) => {
+    {offset = 0, transitions = [], attack: strokeAttack = 0.004,
+      strumDirection = null, destination = context.destination} = {}) => {
     const voices = [], end = when + Math.max(0.025, duration);
     const baseVolume = Math.max(volume, ...transitions.map(item => item.volume ?? volume), 0.001);
     const chainGain = context.createGain();
     chainGain.connect(destination);
     let endedVoices = 0;
-    const makeVoice = (pitch, start, finish, loudness, sampleOffset = 0, attack = 0.004) => {
-      const sample = key(pitch, string), buffer = buffers.get(sample.url);
+    const makeVoice = (pitch, start, finish, loudness, sampleOffset = 0,
+      attack = 0.004, {soft = false, tailFactor = 1} = {}) => {
+      const sample = soft ? softKey(pitch, string) ?? key(pitch, string) : key(pitch, string);
+      const buffer = buffers.get(sample.url);
       if (!buffer) throw new Error('吉他音源尚未准备好');
       const source = context.createBufferSource(), gain = context.createGain();
       source.buffer = buffer;
@@ -39,8 +47,23 @@ export function createGuitarInstrument(status = () => {}) {
       source.connect(gain); gain.connect(chainGain);
       const level = loudness * 2;
       gain.gain.setValueAtTime(0, start);
-      gain.gain.linearRampToValueAtTime(level, start + attack);
-      gain.gain.setValueAtTime(level, Math.max(start + attack, finish - 0.025));
+      if (tailFactor < 1) {
+        // The picked attack remains clear while its body continues to the next
+        // same-string onset. Resume at the corresponding point of this envelope.
+        const body = elapsed => elapsed <= 0.11 ? 1 : elapsed >= 0.24 ? tailFactor :
+          1 - (1 - tailFactor) * (elapsed - 0.11) / 0.13;
+        const release = Math.max(start + attack, finish - 0.025);
+        gain.gain.linearRampToValueAtTime(level * body(sampleOffset), start + attack);
+        const hold = start + 0.11 - sampleOffset;
+        if (hold > start + attack && hold < release) gain.gain.setValueAtTime(level, hold);
+        const drop = start + 0.24 - sampleOffset;
+        if (drop > start + attack && drop < release)
+          gain.gain.linearRampToValueAtTime(level * tailFactor, drop);
+        gain.gain.setValueAtTime(level * body(sampleOffset + release - start), release);
+      } else {
+        gain.gain.linearRampToValueAtTime(level, start + attack);
+        gain.gain.setValueAtTime(level, Math.max(start + attack, finish - 0.025));
+      }
       gain.gain.linearRampToValueAtTime(0, finish);
       source.start(start, Math.min(Math.max(0, buffer.duration - 0.01), sampleOffset * rate));
       source.stop(finish + 0.01);
@@ -79,8 +102,17 @@ export function createGuitarInstrument(status = () => {}) {
     }
     chainGain.gain.setValueAtTime(currentVolume / baseVolume, when);
     const graceSlide = !!transitions[0]?.graceSlide;
-    let active = [makeVoice(currentMidi, when, end, baseVolume,
-      offset > 0 && transitions.length ? 0.055 + Math.max(0, offset - lastAt) : graceSlide ? 0.055 : offset,
+    const sampleOffset = offset > 0 && transitions.length ?
+      0.055 + Math.max(0, offset - lastAt) : graceSlide ? 0.055 : offset;
+    const quiet = strumDirection === 'up' ? softKey(currentMidi, string) : null;
+    const useSoftUp = strumDirection === 'up' && !transitions.length &&
+      !!quiet && buffers.has(quiet.url);
+    let active = useSoftUp ? [
+      makeVoice(currentMidi, when, end, baseVolume * 0.84, sampleOffset,
+        strokeAttack, {soft: true}),
+      makeVoice(currentMidi, when, end, baseVolume * 0.45, sampleOffset,
+        strokeAttack, {tailFactor: 0.70})
+    ] : [makeVoice(currentMidi, when, end, baseVolume, sampleOffset,
       graceSlide ? 0.018 : strokeAttack)];
     const addBodyLayer = (transition, index, arrival, targetRatio) => {
       const main = active[0];
@@ -165,14 +197,32 @@ export function createGuitarInstrument(status = () => {}) {
         return (await response.json()).samples;
       }).catch(error => { manifestPromise = null; throw error; });
       samples = await manifestPromise;
-      const needed = new Map();
+      if (events.some(event => event.strum?.direction === 'up' && event.midi.length > 1)) {
+        softManifestPromise ??= fetch('/audio/guitar/soft/manifest.json').then(async response => {
+          const items = response.ok ? (await response.json()).samples : [];
+          return Array.isArray(items) ? items : [];
+        }).catch(() => []);
+        softSamples = await softManifestPromise;
+      }
+      const needed = new Map(), quietNeeded = new Map();
       for (const event of events) for (const [index, midi] of event.midi.entries()) {
         const sample = key(midi, event.strings?.[index]); needed.set(sample.url, sample);
+        if (event.strum?.direction === 'up' && event.midi.length > 1) {
+          const quiet = softKey(midi, event.strings?.[index]);
+          if (quiet) quietNeeded.set(quiet.url, quiet);
+        }
       }
       await Promise.all([...needed.keys()].filter(url => !buffers.has(url)).map(async url => {
         const response = await fetch(url);
         if (!response.ok) throw new Error('吉他采样文件无法读取');
         buffers.set(url, await context.decodeAudioData(await response.arrayBuffer()));
+      }));
+      await Promise.all([...quietNeeded.keys()].filter(url => !buffers.has(url)).map(async url => {
+        try {
+          const response = await fetch(url);
+          if (response.ok) buffers.set(url,
+            await context.decodeAudioData(await response.arrayBuffer()));
+        } catch { /* A missing quiet take falls back to the regular sample. */ }
       }));
       status('本地吉他采样已就绪');
     } catch (error) { status('音源加载失败，可切换基础合成'); throw error; }

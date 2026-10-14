@@ -1,4 +1,6 @@
 import {dynamicCategory as dynamicLevel, timingWarning} from './core.js';
+import {suggestedStrumDynamic, strumAccents} from './playback.js';
+import {autoStrumBars, getAutoStrumContrast} from './preferences.js';
 import {drawRhythms} from './notation.js';
 import {previousOnString} from './techniques.js';
 const SVG = 'http://www.w3.org/2000/svg';
@@ -22,12 +24,12 @@ export function displayedChords(events) {
   });
 }
 
-export function eventXPositions(events, labels = displayedChords(events)) {
+export function eventXPositions(events, labels = displayedChords(events), spacing = 49) {
   const positions = [];
   let lastLabelRight = 0;
   for (const [index, label] of labels.entries()) {
     const halfLabel = label ? Math.max(14, [...label].length * 3.6) : 0;
-    let x = index ? positions[index - 1] + 49 : 86;
+    let x = index ? positions[index - 1] + spacing : 86;
     if (label) {
       x = Math.max(x, halfLabel + 14, lastLabelRight + halfLabel + 12);
       lastLabelRight = x + halfLabel;
@@ -38,6 +40,9 @@ export function eventXPositions(events, labels = displayedChords(events)) {
 }
 
 export function renderTab(container, score, selected, range = new Set(), {editable=false} = {}) {
+  const compact=editable&&document.body.dataset.layout==='review'&&document.body.dataset.scoreDensity==='compact';
+  const automaticAccents = strumAccents(score);
+  const strumContrast = getAutoStrumContrast();
   const sameScore=container.dataset.renderedScore===score.id;
   const scrollTop=sameScore?container.scrollTop:0;
   const scrollPositions=new Map(sameScore?[...container.querySelectorAll('.measure-card')].map(card=>[card.dataset.measure,card.querySelector('.tab-scroll')?.scrollLeft??0]):[]);
@@ -63,7 +68,8 @@ export function renderTab(container, score, selected, range = new Set(), {editab
       name.title=`${source?.name ? source.name+' · ' : ''}识别时第 ${measure.originalNumber} 段`;name.dataset.originalNumber=measure.originalNumber;}
     const state = document.createElement('span');
     state.className = 'measure-state';
-    state.textContent = timingWarning(score, measure) || '节奏已设置';
+    state.textContent = measure.recognition?.status==='missing'&&!measure.events.length
+      ? '原图段落待补录' : timingWarning(score, measure) || '节奏已设置';
     head.append(name, state);
     if(editable) {
       const select=document.createElement('button');select.className='small';select.textContent='小节操作';
@@ -76,13 +82,18 @@ export function renderTab(container, score, selected, range = new Set(), {editab
     card.append(head);
     const wrap = document.createElement('div');
     wrap.className = 'tab-scroll';
-    const left = 62, right = 26, top = 98, gap = 24;
+    const hasStrum=measure.events.some(event=>!!event.strum);
+    const hasChord=measure.events.some(event=>!!event.chordName);
+    const left = 62, right = 26, top = compact ? (hasStrum ? 98 : hasChord ? 84 : 72) : 98;
+    const gap = compact ? 20 : 24;
     const chordLabels = displayedChords(measure.events);
-    const eventXs = eventXPositions(measure.events, chordLabels);
+    const eventXs = eventXPositions(measure.events, chordLabels, compact ? 44 : 49);
     const lastLabel = chordLabels.at(-1);
     const rightPad = Math.max(80, lastLabel ? [...lastLabel].length * 3.6 + 26 : 0);
     const width = Math.max(430, (eventXs.at(-1) ?? left) + rightPad, left + 210);
-    const svg = el('svg', {viewBox: `0 0 ${width} 275`, width, height: 275, class: 'tab-staff', 'aria-label': `第${measure.number}小节六线谱`});
+    const svgHeight=compact?top+5*gap+57:275;
+    const rhythmOffset=compact?top+5*gap-163:55;
+    const svg = el('svg', {viewBox: `0 0 ${width} ${svgHeight}`, width, height: svgHeight, class: 'tab-staff', 'aria-label': `第${measure.number}小节六线谱`});
     for (let string = 1; string <= 6; string++) {
       const y = top + (string - 1) * gap;
       svg.append(el('line', {x1: left - 20, x2: width - right + 2, y1: y, y2: y, class: 'string-line'}));
@@ -99,15 +110,16 @@ export function renderTab(container, score, selected, range = new Set(), {editab
           'aria-label':`空小节，第${string}弦，添加第一个演奏位置`});
         cell.append(el('rect',{x:left,y:top+(string-1)*gap-11,width:width-left-right,height:22,rx:4,class:'cell-target'}));svg.append(cell);
       }
-      svg.append(el('text',{x:left+12,y:247,class:'duration-label'},'空小节 · 点击弦线开始写谱'));
+      svg.append(el('text',{x:left+12,y:svgHeight-28,class:'duration-label'},'空小节 · 点击弦线开始写谱'));
     }
     for (const [index, event] of measure.events.entries()) {
+      const defaultDynamics = suggestedStrumDynamic(score, event);
       const x = eventXs[index];
       if (selected?.eventId === event.id) svg.append(el('rect', {x: x - 22, y: top - 17, width: 44, height: 5 * gap + 34, rx: 8, class: selected.kind==='position'?'event-selection position-selection':'event-selection'}));
       if(editable&&selected?.eventId===event.id){
         const handle=el('g',{'data-column-position':event.id,class:'column-handle',tabindex:0,role:'button','aria-label':'选中整个演奏位置'});
         handle.append(el('title',{},'选中整个演奏位置'));
-        handle.append(el('rect',{x:x-20,y:79,width:40,height:7,rx:3}));svg.append(handle);
+        handle.append(el('rect',{x:x-20,y:top-19,width:40,height:7,rx:3}));svg.append(handle);
       }
       else if (range.has(event.id)) svg.append(el('rect', {x: x - 22, y: top - 17, width: 44, height: 5 * gap + 34, rx: 8, class: selected?.kind==='multi'?'range-selection multi-range':'range-selection'}));
       const position=el('g',{class:`position-selector${selected?.eventId===event.id&&selected?.kind==='position'?' active':''}`,...(editable?{'data-position':event.id,tabindex:0,role:'button','aria-label':`选择第${index+1}个演奏位置`}:{})});
@@ -124,14 +136,29 @@ export function renderTab(container, score, selected, range = new Set(), {editab
         svg.append(chord);
       }
       if (event.strum) {
+        const automatic = event.strum.volume === undefined;
+        const accent = automaticAccents.get(event.id) ?? 1;
+        const accentBars = autoStrumBars(accent, strumContrast);
         const strum = el('g', {class: event.chordPending ? 'strum-trigger pending' : 'strum-trigger', ...(editable ? {
           'data-position': event.id, tabindex: 0, role: 'button',
-          'aria-label': `${event.strum.direction === 'down' ? '下扫' : '上扫'}，${event.chordPending?'按弦待确认':'选中位置修改扫弦'}`
+          'aria-label': `${event.strum.direction === 'down' ? '下扫' : '上扫'}，${event.chordPending?'按弦待确认':automatic?(accentBars ? `自动拍点力度${['','较轻','中等','较强'][accentBars]}` : '自动拍点起伏已关闭'):`手动扫弦力度${event.strum.volume}`}`
         } : {})});
         strum.append(el('rect', {x: x - 15, y: 51, width: 30, height: 28, rx: 6,
           class: 'strum-hit'}));
         strum.append(el('text', {x, y: 73, 'text-anchor': 'middle', class: 'strum-marker'},
           event.strum.direction === 'down' ? '↓' : '↑'));
+        if (event.strum.volume !== undefined) {
+          strum.append(el('text', {x: x + 24, y: 92, 'text-anchor': 'middle', class: 'strum-volume-marker'},
+            String(event.strum.volume)));
+          strum.append(el('title', {}, `本次扫弦力度 ${event.strum.volume}`));
+        } else if (!event.chordPending && accentBars) {
+          for (let bar = 0; bar < accentBars; bar++) {
+            const height = 3 + bar * 2;
+            strum.append(el('rect', {x: x + 16 + bar * 6, y: 94 - height, width: 4, height,
+              rx: 1, class: 'strum-auto-bar'}));
+          }
+          strum.append(el('title', {}, `自动拍点起伏：${['','较轻','中等','较强'][accentBars]}；短条只表示这一层的相对强弱`));
+        }
         svg.append(strum);
       }
       if(editable&&index===measure.events.length-1){
@@ -145,10 +172,10 @@ export function renderTab(container, score, selected, range = new Set(), {editab
         const note = event.notes.find(n => n.string === string);
         const multiSelected=!!note&&selected?.kind==='multi'&&selected.noteIds.includes(note.id);
         const isCellSelected=selected?.kind==='multi'?multiSelected:selected?.kind!=='position'&&selected?.kind!=='rhythm'&&selected?.eventId===event.id&&selected.string===string;
-        const cell = el('g', {class: `tab-cell${note ? ` has-note dynamic-${dynamicLevel(event, note)}` : ''}${note&&(note.id===selected?.noteId||multiSelected) ? ' selected-note' : ''}${isCellSelected?' selected-cell':''}`,
+        const cell = el('g', {class: `tab-cell${note ? ` has-note dynamic-${dynamicLevel(event, note, defaultDynamics)}` : ''}${note&&(note.id===selected?.noteId||multiSelected) ? ' selected-note' : ''}${isCellSelected?' selected-cell':''}`,
           'data-event': event.id, 'data-note': note?.id ?? '', 'data-string': string, 'data-x': x,
-          'data-span': (eventXs[index+1] ?? x+49)-x,
-          tabindex: 0, role: 'button', 'aria-label': `${index + 1}位置，第${string}弦${note ? `，${note.fret ?? '未知'}品，${{soft: '轻', normal: '中', strong: '重'}[dynamicLevel(event, note)]}力度` : '，添加音符'}`});
+          'data-span': (eventXs[index+1] ?? x+(compact?44:49))-x,
+          tabindex: 0, role: 'button', 'aria-label': `${index + 1}位置，第${string}弦${note ? `，${note.fret ?? '未知'}品，${{soft: '轻', normal: '中', strong: '重'}[dynamicLevel(event, note, defaultDynamics)]}力度` : '，添加音符'}`});
         cell.append(el('rect', {x: x - 21, y: y - 11, width: 42, height: 22, rx: 5, class: 'cell-target'}));
         if (note) {
           const textWidth = note.fret !== null && note.fret >= 10 ? 27 : 19;
@@ -179,11 +206,11 @@ export function renderTab(container, score, selected, range = new Set(), {editab
         svg.append(cell);
       }
     }
-    const rhythms=el('g',{transform:'translate(0 55)'});
+    const rhythms=el('g',{transform:`translate(0 ${rhythmOffset})`});
     drawRhythms(rhythms,measure,score.timeSignature,index=>eventXs[index],el,editable);
     svg.append(rhythms);
     if(selected?.kind==='rhythm')svg.querySelector(`[data-rhythm="${CSS.escape(selected.eventId)}"]`)?.classList.add('selected-rhythm');
-    svg.append(el('line', {x1: 0, x2: 0, y1: 69, y2: 269, class: 'playhead', visibility: 'hidden'}));
+    svg.append(el('line', {x1: 0, x2: 0, y1: compact?Math.min(69,top-3):69, y2: svgHeight-6, class: 'playhead', visibility: 'hidden'}));
     wrap.append(svg);
     card.append(wrap);
     if(editable&&selected?.kind==='position'&&measure.events.some(e=>e.id===selected.eventId)){
@@ -237,14 +264,24 @@ export function updatePlayhead(container, eventId, progress = 0, follow = false,
   }
 }
 
+function appendSourceHighlights(svg, page, event, selected) {
+  for (const note of event?.notes ?? []) {
+    if (note.source?.pageId !== page.id || !note.source.box) continue;
+    const [a, b, c, d] = note.source.box;
+    svg.append(el('rect', {x: a - 2, y: b - 2, width: c - a + 4, height: d - b + 4,
+      class: note.id === selected?.noteId ? 'source-focus' : 'source-chord', rx: 3}));
+  }
+}
+
 export function renderSource(svg, score, selected, wholePage = false) {
   svg.replaceChildren();
   delete svg.dataset.pageId;
+  delete svg.dataset.rowKey;
   const measure = score.measures.find(m => m.id===selected?.measureId || m.events.some(e => e.id === selected?.eventId));
   const event = measure?.events.find(e => e.id === selected?.eventId);
   const pageId = measure?.source?.pageId ?? event?.notes.find(n => n.source)?.source.pageId ?? measure?.events.flatMap(e=>e.notes).find(n=>n.source)?.source.pageId;
   if(measure?.authored && !pageId)return false;
-  const page = score.sources.find(p => p.id === pageId) ?? score.sources[0];
+  const page = pageId ? score.sources.find(p => p.id === pageId) : measure ? null : score.sources[0];
   if (!page || !(page.dataUrl || page.url)) return false;
   const crop = measure?.source?.pageId === page.id ? measure.source.box : page.cropBox;
   let [x1, y1, x2, y2] = !wholePage && crop ? crop : [0, 0, page.width, page.height];
@@ -260,11 +297,29 @@ export function renderSource(svg, score, selected, wholePage = false) {
   const left = Math.max(0, x1 - padding), top = Math.max(0, y1 - padding);
   svg.setAttribute('viewBox', `${left} ${top} ${x2 - left + padding} ${y2 - top + padding}`);
   svg.append(el('image', {href: page.dataUrl || page.url, x: 0, y: 0, width: page.width, height: page.height}));
-  for (const note of event?.notes ?? []) {
-    if (note.source?.pageId !== page.id || !note.source.box) continue;
-    const [a, b, c, d] = note.source.box;
-    svg.append(el('rect', {x: a - 2, y: b - 2, width: c - a + 4, height: d - b + 4,
-      class: note.id === selected.noteId ? 'source-focus' : 'source-chord', rx: 3}));
+  appendSourceHighlights(svg,page,event,selected);
+  return true;
+}
+
+export function renderSourceRow(svg, score, row, selected=null) {
+  const page=score.sources.find(source=>source.id===row?.pageId);
+  if(!page || !(page.dataUrl || page.url)){
+    svg.replaceChildren();delete svg.dataset.pageId;delete svg.dataset.rowKey;
+    return false;
+  }
+  const sameRow=svg.dataset.rowKey===row.key&&svg.dataset.pageId===page.id;
+  if(sameRow)svg.querySelectorAll('.source-focus,.source-chord').forEach(element=>element.remove());
+  else svg.replaceChildren();
+  const [x1,y1,x2,y2]=row.box;
+  const padding=14;
+  const left=Math.max(0,x1-padding),top=Math.max(0,y1-padding);
+  svg.setAttribute('viewBox',`${left} ${top} ${Math.min(page.width,x2+padding)-left} ${Math.min(page.height,y2+padding)-top}`);
+  svg.dataset.pageId=page.id;
+  svg.dataset.rowKey=row.key;
+  if(!sameRow)svg.append(el('image',{href:page.dataUrl||page.url,x:0,y:0,width:page.width,height:page.height}));
+  if(selected){
+    const event=score.measures.flatMap(measure=>measure.events).find(item=>item.id===selected.eventId);
+    appendSourceHighlights(svg,page,event,selected);
   }
   return true;
 }

@@ -4,12 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test app/tests/agent-format.test.js app/tests/core.test.js app/tests/playback.test.js app/tests/guitar.test.js app/tests/dynamics.test.js app/tests/recognition.test.js app/tests/notation.test.js app/tests/selection.test.js app/tests/techniques.test.js app/tests/ornaments.test.js app/tests/chords-strum.test.js",
+    "test": "node --test app/tests/agent-format.test.js app/tests/core.test.js app/tests/playback.test.js app/tests/guitar.test.js app/tests/dynamics.test.js app/tests/recognition.test.js app/tests/notation.test.js app/tests/selection.test.js app/tests/techniques.test.js app/tests/ornaments.test.js app/tests/chords-strum.test.js app/tests/review.test.js app/tests/coverage.test.js",
     "test:ui": "node app/tests/browser.mjs",
     "test:workspace": "node app/tests/workspace-browser.mjs",
     "test:direct": "node app/tests/direct-browser.mjs",
     "test:selection": "node app/tests/selection-browser.mjs",
     "test:recognition": "node app/tests/recognition-browser.mjs",
+    "test:manual-recovery": "node app/tests/manual-recovery-browser.mjs",
     "test:playback": "node app/tests/playback-browser.mjs",
     "test:practice": "node app/tests/practice-browser.mjs",
     "test:sustain": "node app/tests/sustain-browser.mjs",
@@ -22,7 +23,15 @@
     "test:public": "node app/tests/public-browser.mjs",
     "test:layout-pdf": "node app/tests/layout-pdf-browser.mjs",
     "test:agent-import": "node app/tests/agent-import-browser.mjs",
-    "test:chords-strum": "node app/tests/chords-strum-browser.mjs"
+    "test:review": "node app/tests/review-browser.mjs",
+    "test:chords-strum": "node app/tests/chords-strum-browser.mjs",
+    "test:settings": "node app/tests/settings-browser.mjs",
+    "test:appearance": "node app/tests/appearance-browser.mjs",
+    "test:inspector": "node app/tests/inspector-browser.mjs",
+    "test:dock": "node app/tests/dock-browser.mjs",
+    "test:tabs": "node app/tests/tabs-browser.mjs",
+    "test:keyboard": "node app/tests/keyboard-navigation-browser.mjs",
+    "test:strum-audio": "node app/tests/strum-audio-browser.mjs"
   },
   "devDependencies": {
     "playwright": "^1.63.0"

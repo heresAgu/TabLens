@@ -1,6 +1,7 @@
 import {chromium} from 'playwright';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
+import {control} from './controls.mjs';
 
 const base=process.env.TABLENS_TEST_URL||'http://127.0.0.1:8765';
 const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
@@ -27,21 +28,40 @@ try {
   assert.deepEqual(await page.locator('#tab-view .strum-marker').allTextContents(),['↓','↑']);
   const imported=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
   assert.deepEqual(imported.measures[0].events.slice(0,2).map(event=>event.strum),[
-    {direction:'down',spreadBeats:0.08,speedMode:'auto'},
-    {direction:'up',spreadBeats:0.08,speedMode:'auto'}
+    {direction:'down',spreadBeats:0.08,speedMode:'auto',autoDynamics:true},
+    {direction:'up',spreadBeats:0.08,speedMode:'auto',autoDynamics:true}
   ]);
   await page.locator('#tab-view [data-position]').first().click();
   await page.locator('[data-editor-tab="rhythm"]').click();
   assert.equal(await page.locator('#strum-speed').inputValue(),'auto');
   assert.match(await page.locator('#strum-speed option[value="auto"]').textContent(),/快扫/);
-  await page.locator('#strum-speed').selectOption('0.16');
+  assert.equal(await control(page,'#event-dynamics').inputValue(),'auto');
+  assert.match(await page.locator('#event-dynamics option[value="auto"]').textContent(),/轻/);
+  await control(page,'#strum-speed').selectOption('0.16');
+  assert.match(await page.locator('#event-dynamics option[value="auto"]').textContent(),/中/);
+  await control(page,'#event-dynamics').selectOption('strong');
+  assert.equal(await control(page,'#event-dynamics').inputValue(),'strong');
+  await control(page,'#event-dynamics').selectOption('auto');
+  assert.equal(await control(page,'#event-dynamics').inputValue(),'auto');
   const manual=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
-  assert.deepEqual(manual.measures[0].events[0].strum,{direction:'down',spreadBeats:0.16});
-  await page.locator('#strum-speed').selectOption('auto');
+  assert.deepEqual(manual.measures[0].events[0].strum,{direction:'down',spreadBeats:0.16,autoDynamics:true});
+  await control(page,'#strum-speed').selectOption('auto');
   assert.equal(await page.locator('#strum-speed').inputValue(),'auto');
   await page.locator('#preview').click();
   await page.waitForFunction(()=>document.querySelector('#sound-status').textContent.includes('已就绪'));
   await page.locator('#stop').click();
+
+  const withTechnique=structuredClone(raw);
+  withTechnique.metadata.title='Agent技巧导入';
+  const target=withTechnique.measures[0].events[1].notes.find(note=>note.string===2);
+  target.fret=2;
+  target.technique={type:'hammer'};
+  await upload(withTechnique);
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='Agent技巧导入');
+  assert.equal(await page.locator('#tab-view .technique-marker').count(),1);
+  const linked=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
+  assert.equal(linked.measures[0].events[1].notes.find(note=>note.string===2).technique.fromNoteId,
+    linked.measures[0].events[0].notes.find(note=>note.string===2).id);
 
   const isolated=structuredClone(raw);
   isolated.metadata.title='自动速度规则';
@@ -53,8 +73,10 @@ try {
   await page.locator('#tab-view [data-position]').first().click();
   await page.locator('[data-editor-tab="rhythm"]').click();
   assert.match(await page.locator('#strum-speed option[value="auto"]').textContent(),/标准/);
+  assert.match(await page.locator('#event-dynamics option[value="auto"]').textContent(),/中/);
   await page.locator('#edit-duration').selectOption('1/8');
   assert.match(await page.locator('#strum-speed option[value="auto"]').textContent(),/快扫/);
+  assert.match(await page.locator('#event-dynamics option[value="auto"]').textContent(),/轻/);
   assert.match(await page.locator('#toast').textContent(),/Agent 乐谱已打开/);
   assert.match(await page.locator('#play-status').textContent(),/已可播放/);
 
@@ -76,9 +98,201 @@ try {
     const score=JSON.parse(localStorage.getItem('tablens.workspace.v1')||'null');
     return score?.measures[1]?.manualReference;
   });
-  const linked=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
-  assert.equal(linked.sources.length,1);
-  assert.equal(linked.measures[0].source.pageId,linked.measures[1].source.pageId);
+  const imageLinked=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
+  assert.equal(imageLinked.sources.length,1);
+  assert.equal(imageLinked.measures[0].source.pageId,imageLinked.measures[1].source.pageId);
+
+  const packed=structuredClone(withImage);
+  packed.format='tablens.agent.v2';
+  packed.metadata.title='逐小节图文对照';
+  const sourceDataUrl=await page.evaluate(()=>{
+    const canvas=document.createElement('canvas');canvas.width=100;canvas.height=80;
+    const context=canvas.getContext('2d');context.fillStyle='white';context.fillRect(0,0,100,80);
+    context.fillStyle='black';context.fillText('TAB',5,20);context.fillText('歌词',5,65);
+    return canvas.toDataURL('image/png');
+  });
+  packed.sources=[{id:'page-1',name:'图文谱.png',width:100,height:80,dataUrl:sourceDataUrl}];
+  packed.measures[0].source={pageId:'page-1',box:[0,0,40,70]};
+  packed.measures[1].source={pageId:'page-1',box:[40,0,100,70]};
+  await upload(packed);
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='逐小节图文对照');
+  assert.equal(await page.locator('#source-view').getAttribute('viewBox'),'0 0 62 92');
+  assert.match(await page.locator('#source-description').textContent(),/当前小节原图/);
+  await page.locator('#layout-mode [data-mode="practice"]').click();
+  assert.equal(await page.locator('#source-next').isVisible(),true);
+  assert.equal(await page.locator('#source-next-view').getAttribute('viewBox'),'0 0 100 80');
+  assert.match(await page.locator('#source-next-label').textContent(),/第1–2小节/);
+  await page.locator('#source-row-zoom-in').click();
+  const rowBox=await page.locator('#source-next-view').getAttribute('viewBox');
+  assert.ok(Number(rowBox.split(' ')[2])<100);
+  await page.locator('#source-zoom-in').click();
+  const upperZoom=Number((await page.locator('#source-view').getAttribute('viewBox')).split(' ')[2]);
+  assert.ok(upperZoom<62);
+  const upperRect=await page.locator('#source-view').boundingBox();
+  await page.mouse.move(upperRect.x+upperRect.width/2,upperRect.y+upperRect.height/2);
+  await page.mouse.down();await page.mouse.move(upperRect.x+upperRect.width/2+20,upperRect.y+upperRect.height/2+10,{steps:3});await page.mouse.up();
+  await page.locator('#tempo').fill('300');await page.locator('#tempo').press('Tab');
+  await page.evaluate(()=>{
+    window.sourceGhostCount=0;
+    window.staticRowImage=document.querySelector('#source-next-view image');
+    new MutationObserver(records=>{
+      for(const record of records)for(const node of record.addedNodes)
+        if(node instanceof SVGElement&&node.getAttribute('aria-hidden')==='true')window.sourceGhostCount++;
+    }).observe(document.querySelector('.source-canvas'),{childList:true});
+  });
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>document.querySelector('#source-view').dataset.measureId===
+    JSON.parse(localStorage.getItem('tablens.workspace.v1')).measures[1].id,null,{timeout:10000});
+  assert.equal(await page.evaluate(()=>window.sourceGhostCount),0);
+  assert.equal(await page.locator('#source-next-view').getAttribute('viewBox'),rowBox);
+  assert.equal(await page.evaluate(()=>document.querySelector('#source-next-view image')===window.staticRowImage),true);
+  assert.ok(Number((await page.locator('#source-view').getAttribute('viewBox')).split(' ')[2])<104);
+  await page.locator('#stop').click();
+  await page.locator('#source-row-zoom-fit').click();
+  await page.locator('#source-zoom-fit').click();
+  await page.locator('#layout-mode [data-mode="review"]').click();
+  await page.locator('#source-toggle').click();
+  assert.equal(await page.locator('#source-toggle').textContent(),'小节');
+  await page.locator('#source-toggle').click();
+  await page.locator('[data-select-measure]').nth(1).click();
+  assert.equal(await page.locator('#source-view').getAttribute('viewBox'),'18 0 104 92');
+  const packedScore=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
+  assert.equal(packedScore.sources.length,1);
+  assert.deepEqual(packedScore.measures.map(measure=>measure.source.box),[[0,0,40,70],[40,0,100,70]]);
+  await page.locator('#measures-toggle').click();
+  assert.equal(await page.locator('#files-sidebar').isVisible(),true);
+  assert.equal(await page.locator('#sidebar-measure-list .measure-overview-row').count(),2);
+  assert.equal(await page.locator('#sidebar-measure-list .measure-thumb-svg image').count(),2);
+  await page.waitForFunction(()=>[...document.querySelectorAll('#sidebar-measure-list .measure-thumb-svg image')]
+    .every(image=>image.getAttribute('href')?.startsWith('data:image/')));
+  await page.screenshot({path:'app/.runtime/tablens-measure-sidebar.png'});
+  await page.locator('#sidebar-measure-list .measure-overview-row').first().click();
+  assert.equal(await page.locator('#files-sidebar').isVisible(),true);
+  await page.locator('#sidebar-measure-list .measure-overview-row').nth(1).click();
+  await page.locator('#sidebar-overview-open').click();
+  assert.equal(await page.locator('#measure-overview-list .measure-overview-row').count(),2);
+  await page.locator('#close-measure-overview').click();
+  await page.locator('#sidebar-files-tab').click();
+  assert.equal(await page.locator('#sidebar-files-content').isVisible(),true);
+  await page.locator('#files-close').click();
+  assert.equal(await page.locator('#files-sidebar').isVisible(),false);
+  const downloaded=page.waitForEvent('download');
+  await page.locator('#export-file').click();
+  const stream=await (await downloaded).createReadStream();
+  const parts=[];for await(const part of stream)parts.push(part);
+  const exported=JSON.parse(Buffer.concat(parts).toString('utf8'));
+  assert.equal(exported.sources[0].dataUrl,sourceDataUrl);
+  assert.deepEqual(exported.measures.map(measure=>measure.source.box),[[0,0,40,70],[40,0,100,70]]);
+  await upload(exported);
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='逐小节图文对照');
+  assert.equal(await page.locator('#source-view').getAttribute('viewBox'),'18 0 104 92');
+
+  const twoRows=structuredClone(packed);
+  twoRows.metadata.title='两行六小节原图';
+  twoRows.sources[0].width=300;twoRows.sources[0].height=180;
+  twoRows.sources[0].dataUrl=await page.evaluate(()=>{
+    const canvas=document.createElement('canvas');canvas.width=300;canvas.height=180;
+    const context=canvas.getContext('2d');context.fillStyle='white';context.fillRect(0,0,300,180);
+    return canvas.toDataURL('image/png');
+  });
+  for(let index=2;index<6;index++)twoRows.measures.push({...structuredClone(twoRows.measures[0]),number:index+1});
+  twoRows.measures.forEach((measure,index)=>{
+    const column=index<4?index:index-4;
+    const top=index<4?0:90;
+    measure.source={pageId:'page-1',box:[column*70,top,(column+1)*70,top+70]};
+  });
+  await upload(twoRows);
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='两行六小节原图');
+  await page.locator('#layout-mode [data-mode="practice"]').click();
+  assert.match(await page.locator('#source-next-label').textContent(),/第1–4小节/);
+  await page.locator('#tab-view [data-select-measure]').nth(2).click();
+  assert.match(await page.locator('#source-next-label').textContent(),/第1–4小节/);
+  await page.locator('#tab-view [data-select-measure]').nth(3).click();
+  assert.match(await page.locator('#source-next-label').textContent(),/第5–6小节/);
+  await page.locator('#tab-view [data-select-measure]').nth(4).click();
+  assert.match(await page.locator('#source-next-label').textContent(),/第5–6小节/);
+  await page.locator('#tab-view [data-select-measure]').first().click();
+  assert.match(await page.locator('#source-next-label').textContent(),/第1–4小节/);
+  await page.locator('#source-row-next').click();
+  assert.match(await page.locator('#source-next-label').textContent(),/第5–6小节/);
+  const fixedRow=await page.locator('#source-next-view').getAttribute('viewBox');
+  await page.locator('#tab-view [data-select-measure]').nth(2).click();
+  assert.equal(await page.locator('#source-next-view').getAttribute('viewBox'),fixedRow);
+  await page.locator('#source-row-prev').click();
+  assert.match(await page.locator('#source-next-label').textContent(),/第1–4小节/);
+  await page.locator('#tempo').fill('300');await page.locator('#tempo').press('Tab');
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>document.querySelector('#source-next-label').textContent.includes('第5–6小节'),null,{timeout:10000});
+  await page.locator('#stop').click();
+
+  await page.locator('#settings-open').click();
+  await page.locator('[data-settings-tab="practice"]').click();
+  await page.locator('#source-follow-mode').selectOption('row');
+  await page.locator('#settings-close').click();
+  await page.locator('#tab-view [data-select-measure]').first().click();
+  assert.equal(await page.locator('#source-next').isVisible(),true);
+  assert.match(await page.locator('#source-next-label').textContent(),/第5–6小节/);
+  assert.match(await page.locator('#source-follow-label').textContent(),/第 1–4 小节/);
+  const firstLine=await page.locator('#source-view').getAttribute('viewBox');
+  const nextLine=await page.locator('#source-next-view').getAttribute('viewBox');
+  await page.evaluate(()=>{window.fixedLineImage=document.querySelector('#source-view image');});
+  await page.locator('#tab-view [data-select-measure]').nth(1).click();
+  assert.equal(await page.locator('#source-view').getAttribute('viewBox'),firstLine);
+  assert.equal(await page.locator('#source-next-view').getAttribute('viewBox'),nextLine);
+  await page.locator('#source-zoom-in').click();
+  const zoomedLine=await page.locator('#source-view').getAttribute('viewBox');
+  await page.locator('#tab-view [data-select-measure]').nth(3).click();
+  assert.equal(await page.locator('#source-view').getAttribute('viewBox'),zoomedLine);
+  assert.equal(await page.evaluate(()=>document.querySelector('#source-view image')===window.fixedLineImage),true);
+  await page.locator('#tab-view [data-select-measure]').nth(4).click();
+  assert.notEqual(await page.locator('#source-view').getAttribute('viewBox'),zoomedLine);
+  assert.match(await page.locator('#source-follow-label').textContent(),/第 5–6 小节/);
+  assert.equal(await page.locator('#source-next').isVisible(),false);
+  await page.locator('#tab-view [data-select-measure]').first().click();
+  await page.locator('#source-zoom-fit').click();
+  const playingLine=await page.locator('#source-view').getAttribute('viewBox');
+  await page.locator('#play').click();
+  await page.waitForFunction(()=>document.querySelector('#source-view').dataset.measureId===
+    JSON.parse(localStorage.getItem('tablens.workspace.v1')).measures[2].id,null,{timeout:10000});
+  assert.equal(await page.locator('#source-view').getAttribute('viewBox'),playingLine);
+  await page.waitForFunction(()=>document.querySelector('#source-view').dataset.measureId===
+    JSON.parse(localStorage.getItem('tablens.workspace.v1')).measures[4].id,null,{timeout:10000});
+  assert.notEqual(await page.locator('#source-view').getAttribute('viewBox'),playingLine);
+  await page.locator('#stop').click();
+  assert.equal(await page.evaluate(()=>localStorage.getItem('tablens.sourceFollowMode.v1')),'row');
+  await page.locator('#settings-open').click();
+  await page.locator('[data-settings-tab="practice"]').click();
+  assert.equal(await page.locator('#source-follow-mode').inputValue(),'row');
+  await page.locator('#source-preview-enabled').uncheck();
+  await page.locator('#settings-close').click();
+  assert.equal(await page.locator('#source-next').isVisible(),false);
+  await page.locator('#settings-open').click();
+  await page.locator('[data-settings-tab="practice"]').click();
+  await page.locator('#source-preview-enabled').check();
+  await page.locator('#source-preview-layout').selectOption('side');
+  await page.locator('#settings-close').click();
+  assert.equal(await page.locator('#source-next').isVisible(),true);
+  const mainPane=await page.locator('.source-canvas').boundingBox();
+  const previewPane=await page.locator('#source-next').boundingBox();
+  assert.ok(previewPane.x>mainPane.x+mainPane.width-2,'side layout should put preview right of current row');
+  await page.screenshot({path:'app/.runtime/source-preview-side.png'});
+  await page.locator('#practice-view [data-practice-view="tab"]').click();
+  const narrowMain=await page.locator('.source-canvas').boundingBox();
+  const narrowPreview=await page.locator('#source-next').boundingBox();
+  assert.ok(narrowPreview.y>narrowMain.y+narrowMain.height-2,'narrow source sidebar should stack preview');
+  await page.locator('#practice-view [data-practice-view="source"]').click();
+  await page.locator('#settings-open').click();
+  await page.locator('[data-settings-tab="practice"]').click();
+  await page.locator('#source-follow-mode').selectOption('measure');
+  await page.locator('#source-preview-layout').selectOption('stacked');
+  await page.locator('#settings-close').click();
+  await page.locator('#source-zoom-fit').click();
+  await page.locator('#tab-view [data-select-measure]').first().click();
+  const firstMeasure=await page.locator('#source-view').getAttribute('viewBox');
+  await page.locator('#tab-view [data-select-measure]').nth(1).click();
+  assert.notEqual(await page.locator('#source-view').getAttribute('viewBox'),firstMeasure);
+  assert.equal(await page.locator('#source-next').isVisible(),true);
+  await page.locator('#layout-mode [data-mode="review"]').click();
 
   const uncertain=structuredClone(raw);
   uncertain.metadata.title='待核对';

@@ -101,6 +101,62 @@ def intersects(a, b):
             and min(a[3], b[3]) - max(a[1], b[1]) >= min(a[3]-a[1], b[3]-b[1]) * .1)
 
 
+def checked_box(box, image):
+    if not isinstance(box, list) or len(box) != 4 or any(type(x) not in (int, float) or not math.isfinite(x) for x in box):
+        raise ValueError('框选坐标无效')
+    if not (0 <= box[0] < box[2] <= image.width and 0 <= box[1] < box[3] <= image.height):
+        raise ValueError('框选范围超出原图')
+    if box[2] - box[0] < 20 or box[3] - box[1] < 20:
+        raise ValueError('框选范围太小，请框住完整的小节')
+    return [math.floor(box[0]), math.floor(box[1]), math.ceil(box[2]), math.ceil(box[3])]
+
+
+def manual_segment(image, box):
+    """Retain the user's crop even when six strings or stems cannot be located."""
+    box = checked_box(box, image)
+    left, top, right, bottom = box
+    gray = np.asarray(image.convert('L'))[top:bottom, left:right]
+    dark = gray < 210
+    counts = dark.sum(axis=1)
+    spans = (right-left) - np.argmax(dark, axis=1) - np.argmax(dark[:, ::-1], axis=1)
+    candidates = centers(np.flatnonzero((counts >= (right-left) * .38) & (counts >= spans * .68)))
+    strings = None
+    for offset in range(len(candidates)-5):
+        six = candidates[offset:offset+6]
+        gaps = np.diff(six); gap = float(gaps.mean())
+        if gap >= 5 and np.all(abs(gaps-gap) < gap*.23):
+            strings = [y+top for y in six]
+            break
+    issues, columns = [], []
+    row_box = [0, top, image.width, bottom]
+    read_box = box
+    if strings:
+        gap = (strings[-1]-strings[0])/5
+        stem_top = min(image.height-1, round(strings[-1]+gap*.55))
+        stem_bottom = min(image.height, round(strings[-1]+gap*3.6), bottom)
+        if stem_bottom > stem_top:
+            mask = np.asarray(image.convert('L'))[stem_top:stem_bottom, left:right] < 170
+            run = np.zeros(right-left, dtype=int); longest = run.copy()
+            for pixels in mask:
+                run = np.where(pixels, run+1, 0); longest = np.maximum(longest, run)
+            columns = [x+left for x in centers(np.flatnonzero(longest >= gap*.9))
+                       if left+gap*.25 < x+left < right-gap*.25]
+        row_box = [0, max(0, round(strings[0]-gap*2.8)), image.width,
+                   min(image.height, round(strings[-1]+gap*4.4))]
+        read_box = [left, max(0, round(strings[0]-gap*2)), right,
+                    min(bottom, round(strings[-1]+gap*3.7))]
+        if len(columns) < 2:
+            issues.append('未找到至少两个下方符干；保留原图，需人工补录音符')
+        if len(columns) > 128 or any(b-a < gap*1.05 for a,b in zip(columns,columns[1:])):
+            issues.append('演奏位置不可靠；保留原图，需人工补录音符')
+    else:
+        issues.append('未找到完整六条弦线；保留原图，需人工补录音符')
+    return {'id': f'manual-{uuid.uuid4().hex}', 'number': 0, 'box': box,
+            'readBox': read_box, 'rowBox': row_box, 'stringY': strings or [],
+            'left': left, 'right': right, 'columns': columns, 'issues': issues,
+            'readable': not issues, 'manual': True}
+
+
 class RecognitionService:
     def __init__(self, directory, caller=None):
         self.directory = Path(directory); self.directory.mkdir(parents=True, exist_ok=True)
@@ -136,21 +192,21 @@ class RecognitionService:
             if original.width * original.height > 24_000_000 or min(original.size) < 100:
                 raise ValueError('图片尺寸需至少100像素，且不超过2400万像素')
             image = ImageOps.exif_transpose(original).convert('RGB')
-        segments = geometry(image)
-        first_line = min(segment['stringY'][0] for segment in segments)
+        manual_box = value.get('manualBox')
+        segments = [manual_segment(image, manual_box)] if manual_box is not None else geometry(image)
+        if manual_box is not None:
+            segments[0]['number'] = 1
+        first_line = min((segment['stringY'][0] for segment in segments if segment['stringY']), default=100)
         box = value.get('box')
         if box is not None:
-            if not isinstance(box, list) or len(box) != 4 or any(type(x) not in (int, float) or not math.isfinite(x) for x in box):
-                raise ValueError('框选坐标无效')
-            if not (0 <= box[0] < box[2] <= image.width and 0 <= box[1] < box[3] <= image.height):
-                raise ValueError('框选范围超出原图')
+            box = checked_box(box, image)
             segments = [segment for segment in segments if intersects(segment['box'], box)]
         if not segments:
             raise ValueError('所选区域没有完整的六线谱小节，请扩大框选范围')
         identifier = uuid.uuid4().hex
         directory = self.directory / identifier; directory.mkdir()
         image.save(directory / 'source.png')
-        gap = (segments[0]['stringY'][-1] - segments[0]['stringY'][0]) / 5
+        gap = (segments[0]['stringY'][-1] - segments[0]['stringY'][0]) / 5 if segments[0]['stringY'] else 12
         header = image.crop((0, 0, image.width, min(image.height, max(100, round(first_line + gap * 5 + 15)))))
         header.thumbnail((1800, 1200)); header.save(directory / 'header.png')
         source_id = value.get('sourceId') or f'page-{identifier}'
@@ -164,6 +220,37 @@ class RecognitionService:
         with self.lock:
             self.prepared[identifier] = document
         return document
+
+    def add_manual_segment(self, value):
+        with self.lock:
+            prepared = self.prepared.get(value.get('preparedId'))
+            if not prepared:
+                raise ValueError('原图分析已失效，请重新分析图片')
+            if any(job['state'] in ('running', 'cancelling') for job in self.jobs.values()):
+                raise ValueError('识别进行中，请等待任务结束再补小节')
+            with Image.open(self.directory / prepared['id'] / 'source.png') as image:
+                segment = manual_segment(image, value.get('box'))
+            for existing in prepared['segments']:
+                a, b = existing['box'], segment['box']
+                overlap_x = max(0, min(a[2], b[2])-max(a[0], b[0]))
+                overlap_y = max(0, min(a[3], b[3])-max(a[1], b[1]))
+                if overlap_x >= .65*min(a[2]-a[0], b[2]-b[0]) and overlap_y >= .65*min(a[3]-a[1], b[3]-b[1]):
+                    raise ValueError('框选区域与已有小节重叠，请只框住漏掉的小节')
+            placement = value.get('insertAt')
+            if placement is None:
+                # Rows precede columns; nearby vertical coordinates belong to one staff row.
+                index = next((i for i, other in enumerate(prepared['segments'])
+                    if segment['box'][1] < other['box'][1]-max(20, (other['box'][3]-other['box'][1])*.5)
+                    or (abs(segment['box'][1]-other['box'][1]) <= max(20, (other['box'][3]-other['box'][1])*.5)
+                        and segment['box'][0] < other['box'][0])), len(prepared['segments']))
+            elif type(placement) is int and 0 <= placement <= len(prepared['segments']):
+                index = placement
+            else:
+                raise ValueError('插入位置无效')
+            prepared['segments'].insert(index, segment)
+            for number, item in enumerate(prepared['segments'], 1):
+                item['number'] = number
+            return json.loads(json.dumps(prepared))
 
     def start(self, value):
         with self.lock:
@@ -330,7 +417,7 @@ class RecognitionService:
         work = directory / job['id'] / segment['id']; work.mkdir(parents=True)
         with Image.open(directory / 'source.png') as original:
             row = original.crop(tuple(segment['rowBox'])); row.save(work / 'row.png')
-            original.crop(tuple(segment['box'])).save(work / 'measure.png')
+            original.crop(tuple(segment.get('readBox', segment['box']))).save(work / 'measure.png')
         y0 = segment['rowBox'][1]
         anchor = {'measures': [{'number': segment['number'], 'left': segment['left'], 'right': segment['right'],
                    'columns': [{'index': i, 'x': x} for i, x in enumerate(segment['columns'], 1)]}],
@@ -342,7 +429,7 @@ class RecognitionService:
         value = self.request(job, config, system, user, [directory / 'header.png', paths[f"cells_m{segment['number']}"]])
         positions = cells_to_positions(value, anchor)['measures'][0]
         panels = prepare_anchor_samples(work / 'measure.png', work / 'audit', allow_extra_lines=True,
-                                        string_y=[y - segment['box'][1] for y in segment['stringY']])
+                                        string_y=[y - segment.get('readBox', segment['box'])[1] for y in segment['stringY']])
         prompt = (ROOT / 'experiments/prompts/strings_measures_generic_user.txt').read_text(encoding='utf8').replace('{{MEASURE_IMAGES}}', f"第2张是第{segment['number']}小节")
         audit = self.request(job, config, (ROOT / 'experiments/prompts/strings_system.txt').read_text(encoding='utf8'), prompt,
                              [directory / 'header.png', panels['separated_strings']])

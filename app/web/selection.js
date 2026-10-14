@@ -1,4 +1,5 @@
-import {fraction,checkDynamics,dynamicVolume,dynamicLevel,removeNote,eventRange} from './core.js';
+import {fraction,checkDynamics,dynamicVolume,removeNote,eventRange} from './core.js';
+import {effectiveDynamicLevel} from './playback.js';
 
 export function noteSelection(score,noteIds,extraEvents=[]){
   const wanted=new Set(noteIds),eventSet=new Set(extraEvents),ids=[];
@@ -17,7 +18,7 @@ export function editNotes(score,selection,{duration,dynamics,volumeDelta,remove=
     if(duration!==undefined&&events.has(event.id))event.duration=duration;
     for(const note of [...event.notes])if(notes.has(note.id)){
       if(dynamics!==undefined)note.dynamics=dynamics;
-      if(volumeDelta!==undefined)note.dynamics=Math.max(0,Math.min(100,dynamicVolume(dynamicLevel(event,note))+volumeDelta));
+      if(volumeDelta!==undefined)note.dynamics=Math.max(0,Math.min(100,dynamicVolume(effectiveDynamicLevel(score,event,note))+volumeDelta));
       if(remove)removeNote(score,event.id,note.id);
     }
   }

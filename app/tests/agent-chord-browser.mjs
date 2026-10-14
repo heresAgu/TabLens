@@ -27,6 +27,7 @@ try{
   assert.equal(await page.locator('#chord-label').isEnabled(),true);
   assert.equal(await page.locator('#strum-direction').isEnabled(),true);
   assert.equal(await page.locator('#strum-direction').inputValue(),'down');
+  await page.locator('[data-editor-effect="chord"]').click();
   await page.locator('#chord-preset').selectOption('C');
   await page.locator('#apply-chord').click();
   const score=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));

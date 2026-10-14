@@ -58,6 +58,31 @@ class RecognitionTests(unittest.TestCase):
         region=self.prepare(box=chosen['box'])
         self.assertEqual([s['number'] for s in region['segments']],[2])
 
+    def test_manual_bar_can_be_inserted_and_recognized_without_losing_existing_bars(self):
+        whole=self.prepare(); first, second=whole['segments'][:2]
+        region=self.prepare(box=first['box'])
+        old_id=region['segments'][0]['id']
+        updated=self.service.add_manual_segment({'preparedId':region['id'],'box':second['box'],'insertAt':0})
+        self.assertEqual([s['number'] for s in updated['segments']],[1,2])
+        self.assertEqual(updated['segments'][1]['id'],old_id)
+        manual=updated['segments'][0]
+        self.assertTrue(manual['readable'],manual['issues'])
+        self.assertEqual(len(manual['columns']),len(second['columns']))
+        state=self.wait(self.service.start({'preparedId':region['id'],'segmentIds':[manual['id']]}))
+        self.assertEqual(state['state'],'complete',state['errors'])
+        self.assertEqual(state['result']['measures'][0]['recognition']['segmentId'],manual['id'])
+        with self.assertRaisesRegex(ValueError,'重叠'):
+            self.service.add_manual_segment({'preparedId':region['id'],'box':second['box']})
+
+    def test_manual_only_crop_keeps_unreadable_image_for_note_entry(self):
+        data='data:image/png;base64,'+base64.b64encode((ROOT/'lullaby.jpg').read_bytes()).decode()
+        prepared=self.service.prepare({'imageDataUrl':data,'manualBox':[20,20,240,180]})
+        segment=prepared['segments'][0]
+        self.assertEqual(segment['number'],1)
+        self.assertFalse(segment['readable'])
+        self.assertEqual(segment['box'],[20,20,240,180])
+        self.assertTrue(segment['issues'])
+
     def test_real_image_pipeline_with_mock_api_preserves_chord_coordinates(self):
         p=self.prepare();j=self.service.start({'preparedId':p['id'],'segmentIds':[p['segments'][0]['id']]})
         state=self.wait(j)

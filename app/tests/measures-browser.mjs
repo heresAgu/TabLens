@@ -24,36 +24,53 @@ try{
   await page.locator('#practice-settings').click();await page.locator('#range-from').selectOption('1');await page.locator('#range-to').selectOption('1');await page.locator('#practice-close').click();
   await page.locator('#open-measure-overview').click();assert.equal(await page.locator('.measure-overview-row').count(),3);
   await page.screenshot({path:'app/.runtime/tablens-measure-overview.png'});
-  await page.locator(`.measure-overview-row[data-measure-id="${one}"] select`).selectOption('3');
+  const dragTo=async(id,target)=>{
+    const card=await page.locator(`.measure-overview-row[data-measure-id="${id}"]:visible`).boundingBox();
+    await page.mouse.move(card.x+card.width/2,card.y+card.height/2);await page.mouse.down();
+    await page.mouse.move(target.x,target.y,{steps:12});
+  };
+  const thirdCard=await page.locator(`.measure-overview-row[data-measure-id="${three}"]`).boundingBox();
+  await dragTo(one,{x:thirdCard.x+thirdCard.width*.8,y:thirdCard.y+thirdCard.height/2});
+  await page.mouse.up();
   score=await snapshot();assert.deepEqual(score.measures.map(m=>m.id),[two,three,one]);
   assert.deepEqual(score.measures.map(m=>m.number),[1,2,3]);assert.deepEqual(score.measures[2].events.map(e=>e.id),firstEventIds);
   assert.equal(await page.locator('#range-from').inputValue(),'0');assert.equal(await page.locator('#range-to').inputValue(),'2');
+  await page.locator(`.measure-overview-row[data-measure-id="${one}"]`).hover();
   await page.locator(`.measure-overview-row[data-measure-id="${one}"] button[title="上移一小节"]`).click();
   assert.deepEqual((await snapshot()).measures.map(m=>m.id),[two,one,three]);
   await page.locator('#close-measure-overview').click();await page.locator('#undo').click();assert.deepEqual((await snapshot()).measures.map(m=>m.id),[two,three,one]);
   await page.locator('#undo').click();assert.deepEqual((await snapshot()).measures.map(m=>m.id),[one,two,three]);
   await page.locator('#redo').click();assert.deepEqual((await snapshot()).measures.map(m=>m.id),[two,three,one]);
+  await page.locator('#measures-toggle').click();
+  assert.equal(await page.locator('#sidebar-measure-list .measure-overview-row').count(),3);
+  const sideTarget=await page.locator(`#sidebar-measure-list .measure-overview-row[data-measure-id="${three}"]`).boundingBox();
+  await dragTo(two,{x:sideTarget.x+sideTarget.width/2,y:sideTarget.y+sideTarget.height*.8});
+  await page.mouse.up();
+  assert.deepEqual((await snapshot()).measures.map(m=>m.id),[three,two,one]);
+  await page.locator('#undo').click();
+  assert.deepEqual((await snapshot()).measures.map(m=>m.id),[two,three,one]);
+  await dragTo(two,{x:sideTarget.x+sideTarget.width/2,y:sideTarget.y+sideTarget.height*.8});
+  await page.keyboard.press('Escape');await page.mouse.up();
+  assert.deepEqual((await snapshot()).measures.map(m=>m.id),[two,three,one]);
+  await page.locator('#measures-toggle').click();
   await page.locator('#open-measure-overview').click();
   await page.locator(`.measure-overview-row[data-measure-id="${one}"] .measure-overview-preview`).click();
   assert.equal(await page.locator(`.measure-card[data-measure="${firstId}"]`).getAttribute('class').then(text=>text.includes('active-measure')),true);
   await page.reload();await page.waitForFunction(()=>document.querySelector('#score-title').value==='小节排序测试');
   assert.deepEqual((await snapshot()).measures.map(m=>m.id),[two,three,one]);
   await page.locator('#open-measure-overview').click();
-  const dragTo=async(id,target)=>{
-    const handle=await page.locator(`.measure-overview-row[data-measure-id="${id}"] .measure-drag-handle`).boundingBox();
-    await page.mouse.move(handle.x+handle.width/2,handle.y+handle.height/2);await page.mouse.down();
-    await page.mouse.move(target.x,target.y,{steps:12});
-  };
   const firstGap=await page.locator('.measure-overview-gap[data-gap-index="0"]').boundingBox();
   await dragTo(one,{x:firstGap.x+firstGap.width/2,y:firstGap.y+firstGap.height/2});
-  assert.equal(await page.locator('.measure-overview-gap.drag-target').count(),1);
+  assert.equal(await page.locator('.drag-before,.drag-after,.drag-target').count(),1);
   await page.mouse.up();assert.deepEqual((await snapshot()).measures.map(m=>m.id),[one,two,three]);
   assert.equal(await page.locator('.measure-drag-ghost').count(),0);
   const beforeCancel=(await snapshot()).measures.map(m=>m.id);
   await dragTo(one,{x:12,y:12});await page.mouse.up();assert.deepEqual((await snapshot()).measures.map(m=>m.id),beforeCancel);
+  await page.locator('.measure-overview-item').nth(1).hover();
   await page.locator('.measure-overview-gap[data-gap-index="1"] button').click();
   score=await snapshot();assert.equal(score.measures.length,4);const added=score.measures[1].id;
   assert.equal(score.measures[1].events.length,0);assert.deepEqual(score.measures.map(m=>m.id),[one,added,two,three]);
+  await page.locator(`.measure-overview-row[data-measure-id="${added}"]`).hover();
   await page.locator(`.measure-overview-row[data-measure-id="${added}"] .measure-overview-remove`).click();
   assert.deepEqual((await snapshot()).measures.map(m=>m.id),[one,two,three]);
   await page.locator('#close-measure-overview').click();await page.locator('#undo').click();
@@ -61,6 +78,7 @@ try{
   await page.locator('#redo').click();assert.deepEqual((await snapshot()).measures.map(m=>m.id),[one,two,three]);
   await page.locator('#open-measure-overview').click();
   for(let remaining=3;remaining>0;remaining--){
+    await page.locator('.measure-overview-row').first().hover();
     await page.locator('.measure-overview-row').first().locator('.measure-overview-remove').click();
     assert.equal((await snapshot()).measures.length,Math.max(1,remaining-1));
   }
@@ -80,5 +98,5 @@ try{
   await page.locator('#close-measure-overview').click();
   assert.deepEqual(errors,[]);
   await page.screenshot({path:'app/.runtime/tablens-measures.png'});
-  console.log('PASS: append, overview drag/cancel/auto-scroll, gap insertion, deletion through last bar, practice reset, undo/redo, and reload.');
+  console.log('PASS: append, whole-card overview/sidebar drag, Escape cancel, auto-scroll, insertion, deletion, undo/redo, and reload.');
 }finally{await browser.close();}

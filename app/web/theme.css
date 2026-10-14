@@ -3,12 +3,12 @@
 :root[data-theme="dark"] {
   color-scheme: dark;
   --green: #6bc79d;
-  --line: #3b3d42;
+  --line: #464646;
   --muted: #969ba4;
   --text: #bfc3ca;
   --text-strong: #ebedf0;
   color: var(--text);
-  background: #121316;
+  background: #202020;
 }
 
 :root[data-theme="dark"] .topbar,
@@ -17,22 +17,28 @@
 :root[data-theme="dark"] .rhythm-menu,
 :root[data-theme="dark"] .chord-popover {
   color: var(--text);
-  background: #1d1f23;
+  background: #252525;
   border-color: var(--line);
 }
 :root[data-theme="dark"] dialog:not(#recognition-dialog),
 :root[data-theme="dark"] #recognition-dialog,
-:root[data-theme="dark"] #measure-overview-dialog { color: var(--text); background: #1d1f23; }
+:root[data-theme="dark"] #measure-overview-dialog { color: var(--text); background: #252525; }
 
 :root[data-theme="dark"] button:not(.primary),
 :root[data-theme="dark"] input:not([type="checkbox"]):not([type="range"]),
 :root[data-theme="dark"] select {
   color: var(--text);
-  background: #2a2c31;
-  border-color: #4a4d53;
+  background: #303030;
+  border-color: #484848;
 }
 :root[data-theme="dark"] input::placeholder { color: #8f939c; }
-:root[data-theme="dark"] button:not(.primary):hover { background: #383b40; }
+:root[data-theme="dark"] .review-issue{background:transparent;color:var(--text)}
+:root[data-theme="dark"] .review-issue:hover,:root[data-theme="dark"] .review-issue:focus-visible{background:#3b3b3b}
+:root[data-theme="dark"] button:not(.primary):hover { background: #3d3d3d; }
+:root[data-theme="dark"] .settings-tabs button[aria-selected="true"] { color: #8bd8b2; background: #28372f; border-color: #629e79; }
+:root[data-theme="dark"] #files-sidebar,:root[data-theme="dark"] .document-tab.active {background:#252525;color:var(--text-strong);border-color:#629e79}
+:root[data-theme="dark"] .document-tab {background:#303030;color:var(--text);border-color:var(--line)}
+:root[data-theme="dark"] #files-sidebar button.file-entry.active {background:#28372f;color:#8bd8b2;border-color:#629e79}
 :root[data-theme="dark"] .primary { color: #122019; }
 :root[data-theme="dark"] .primary:hover { background: #80d9b0; }
 :root[data-theme="dark"] a { color: #7cd6aa; }
@@ -79,7 +85,7 @@
 :root[data-theme="dark"] .recognition-preview,
 :root[data-theme="dark"] #recognition-result p,
 :root[data-theme="dark"] #selection-tools {
-  background: #25272b;
+  background: #2c2c2c;
   border-color: var(--line);
 }
 :root[data-theme="dark"] .tab-legend { color: var(--muted); }
@@ -102,7 +108,7 @@
 :root[data-theme="dark"] .badge,
 :root[data-theme="dark"] #chord-list button,
 :root[data-theme="dark"] .measure-insertion button,
-:root[data-theme="dark"] .measure-overview-gap button { color: #a2dfb9; background: #2a2d30; border-color: #4a4d53; }
+:root[data-theme="dark"] .measure-overview-gap button { color: #a2dfb9; background: #303030; border-color: #484848; }
 :root[data-theme="dark"] .danger,
 :root[data-theme="dark"] .error { color: #f1a597; }
 :root[data-theme="dark"] .measure-insertion::before,
@@ -114,7 +120,7 @@
 :root[data-theme="dark"] .workspace-resizer:hover,
 :root[data-theme="dark"] .side-resizer:hover,
 :root[data-theme="dark"] .workspace-resizer.dragging,
-:root[data-theme="dark"] .side-resizer.dragging { background: #353a38; }
+:root[data-theme="dark"] .side-resizer.dragging { background: #3b3b3b; }
 
 /* The TAB is an SVG, so its own strokes and number backgrounds need dark values. */
 :root[data-theme="dark"] .string-line { stroke: #7b7e83; }
@@ -125,7 +131,7 @@
 :root[data-theme="dark"] .rest-symbol { fill: #adb0b5; }
 :root[data-theme="dark"] .fret-number { fill: #dfe2e6; }
 :root[data-theme="dark"] .fret-background,
-:root[data-theme="dark"] .grace-background { fill: #1d1f23; }
+:root[data-theme="dark"] .grace-background { fill: #252525; }
 :root[data-theme="dark"] .tab-cell:hover .cell-target,
 :root[data-theme="dark"] .position-selector:hover .position-hit,
 :root[data-theme="dark"] .position-selector.active .position-hit,
@@ -147,18 +153,19 @@
 :root[data-theme="dark"] .tab-cell.playing-note.has-note .cell-target { fill: #60452c; }
 :root[data-theme="dark"] .tab-cell.playing-note.has-note .fret-number { fill: #ffd19a; }
 :root[data-theme="dark"] .rhythm-filled { fill: #c8cbd0; }
-:root[data-theme="dark"] .rhythm-open { fill: #1d1f23; stroke: #c8cbd0; }
+:root[data-theme="dark"] .rhythm-open { fill: #252525; stroke: #c8cbd0; }
 :root[data-theme="dark"] .rhythm-stroke,
 :root[data-theme="dark"] .rhythm-beam { stroke: #c8cbd0; }
 :root[data-theme="dark"] .rhythm-unknown { fill: #adb0b5; }
 :root[data-theme="dark"] .chord-name,
 :root[data-theme="dark"] .append-position-label { fill: #9ce4bb; }
 :root[data-theme="dark"] .strum-marker { fill: #ffc17b; }
+:root[data-theme="dark"] .strum-auto-bar { fill: #ffc17b; }
 :root[data-theme="dark"] .column-handle rect { fill: #81858a; }
 :root[data-theme="dark"] .inline-fret-slot input { color: #b0f0c5; background: #2c3c33; }
-:root[data-theme="dark"] .technique-marker { fill: #8de1b8; stroke: #1d1f23; }
+:root[data-theme="dark"] .technique-marker { fill: #8de1b8; stroke: #252525; }
 :root[data-theme="dark"] .grace-number { fill: #a1d9ea; }
-:root[data-theme="dark"] .bend-marker { fill: #f4b867; stroke: #1d1f23; }
+:root[data-theme="dark"] .bend-marker { fill: #f4b867; stroke: #252525; }
 
 :root[data-theme="dark"] .chord-popover svg line { stroke: #aaacb0; }
 :root[data-theme="dark"] .chord-popover svg text { fill: #d2d3d6; }
@@ -167,3 +174,15 @@
 
 #theme-toggle { min-width: 104px; white-space: nowrap; }
 @media (max-width: 1100px) { #theme-toggle { min-width: 0; } }
+
+:root[data-theme="dark"] .mode-switch{background:#303030;border-color:#484848}
+:root[data-theme="dark"] .mode-switch::before{background:#252525;box-shadow:0 1px 5px #0005}
+:root[data-theme="dark"] .mode-switch button:not(.primary){background:transparent;color:#a4aab0;border:0}
+:root[data-theme="dark"] .mode-switch button[aria-checked="true"]{color:#a5e5bf}
+:root[data-theme="dark"] #sample-section{background:#2c2c2c;border-color:var(--line)}
+:root[data-theme="dark"] #sample-section label{color:var(--muted)}
+:root[data-theme="dark"] .source-next{border-color:var(--line)}
+:root[data-theme="dark"] #practice-view.view-priority{background:#303030;border-color:#484848}
+:root[data-theme="dark"] .view-priority button:not(.primary){background:transparent;border:0}
+:root[data-theme="dark"] .view-priority button[aria-pressed="true"]{background:#252525;color:#a5e5bf}
+:root[data-theme="dark"] .source-practice-tools{border-color:var(--line)}

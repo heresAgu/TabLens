@@ -2,8 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {importScore, portable, timingWarning} from '../web/core.js';
-import {timeline, strumOffsets, suggestedStrumSpread} from '../web/playback.js';
-import {AGENT_FORMAT} from '../web/agent-format.js';
+import {timeline, strumOffsets, suggestedStrumSpread, suggestedStrumDynamic} from '../web/playback.js';
+import {AGENT_FORMAT, AGENT_SOURCE_FORMAT} from '../web/agent-format.js';
 
 const example=()=>{
   const guide=readFileSync(new URL('../../AGENT_IMPORT_TEMPLATE.md', import.meta.url),'utf8');
@@ -19,8 +19,8 @@ test('the actual Agent template example imports down/up strums, rest and valid 4
   assert.equal(score.title,'示例曲名');
   assert.deepEqual(events.map(event=>event.duration),['1/8','1/8','1/4','1/2']);
   assert.deepEqual(events[0].notes.map(note=>[note.string,note.fret]),[[1,0],[2,0],[3,0],[6,0]]);
-  assert.deepEqual(events[0].strum,{direction:'down',spreadBeats:0.08,speedMode:'auto'});
-  assert.deepEqual(events[1].strum,{direction:'up',spreadBeats:0.08,speedMode:'auto'});
+  assert.deepEqual(events[0].strum,{direction:'down',spreadBeats:0.08,speedMode:'auto',autoDynamics:true});
+  assert.deepEqual(events[1].strum,{direction:'up',spreadBeats:0.08,speedMode:'auto',autoDynamics:true});
   assert.deepEqual(events.slice(0,2).map(event=>event.chordName),['Em','Em']);
   assert.equal(events[2].kind,'rest');
   assert.equal(timingWarning(score,score.measures[0]),'');
@@ -31,6 +31,39 @@ test('the actual Agent template example imports down/up strums, rest and valid 4
   assert.deepEqual([...strumOffsets(played.events[1],80).keys()],[1,2]);
   assert.deepEqual(played.events[2].midi,[]);
   assert.deepEqual(importScore(portable(score)).measures,score.measures);
+});
+
+test('Agent v2 keeps one embedded page and a separate source crop for each measure',()=>{
+  const raw=example();
+  raw.format=AGENT_SOURCE_FORMAT;
+  raw.sources=[{id:'page-1',name:'带歌词的谱.png',width:100,height:80,
+    dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='}];
+  raw.measures[0].source={pageId:'page-1',box:[0,0,48,65]};
+  raw.measures.push({...structuredClone(raw.measures[0]),number:2,source:{pageId:'page-1',box:[48,0,100,65]}});
+  const score=importScore(raw);
+  assert.equal(score.sources.length,1);
+  assert.equal(score.sources[0].dataUrl,raw.sources[0].dataUrl);
+  assert.deepEqual(score.measures.map(measure=>measure.source.box),[[0,0,48,65],[48,0,100,65]]);
+  assert.equal(score.measures[0].events[0].notes[0].source,null);
+  assert.deepEqual(importScore(portable(score)).measures.map(measure=>measure.source.box),
+    [[0,0,48,65],[48,0,100,65]]);
+});
+
+test('Agent v2 rejects missing images and invalid per-measure regions',()=>{
+  const make=()=>{
+    const raw=example();raw.format=AGENT_SOURCE_FORMAT;
+    raw.sources=[{id:'page-1',name:'source.png',width:100,height:80,
+      dataUrl:'data:image/png;base64,AAAA'}];
+    raw.measures[0].source={pageId:'page-1',box:[0,0,100,80]};
+    return raw;
+  };
+  const invalid=(edit,pattern)=>{const raw=make();edit(raw);assert.throws(()=>importScore(raw),pattern);};
+  invalid(raw=>{delete raw.sources;},/sources/);
+  invalid(raw=>{raw.sources[0].dataUrl='file:///song.png';},/dataUrl/);
+  invalid(raw=>{raw.measures[0].source.box=[0,0,101,80];},/裁切范围/);
+  invalid(raw=>{raw.measures[0].source.pageId='missing';},/原图不存在/);
+  invalid(raw=>{delete raw.measures[0].source;},/source/);
+  invalid(raw=>{raw.measures[0].source.lyrics='text';},/lyrics/);
 });
 
 test('automatic Agent strums follow edited rhythm while an explicit spread remains fixed',()=>{
@@ -52,7 +85,65 @@ test('automatic Agent strums follow edited rhythm while an explicit spread remai
   assert.equal(timeline(score,40).events[0].strum.spreadBeats,0.28);
   assert.equal(importScore(portable(score)).measures[0].events[0].strum.speedMode,undefined);
   raw.measures[0].events[0].strum.spreadBeats=0.16;
-  assert.deepEqual(importScore(raw).measures[0].events[0].strum,{direction:'down',spreadBeats:0.16});
+  assert.deepEqual(importScore(raw).measures[0].events[0].strum,{direction:'down',spreadBeats:0.16,autoDynamics:true});
+});
+
+test('Agent technique targets connect across events and keep their playback links',()=>{
+  const raw=example();
+  raw.measures[0].events=[
+    {duration:'1/4',notes:[{string:2,fret:3}]},
+    {duration:'1/4',notes:[{string:2,fret:5,technique:{type:'hammer'}}]},
+    {duration:'1/4',notes:[{string:2,fret:3,technique:{type:'pull'}}]},
+    {duration:'1/4',notes:[{string:2,fret:7,technique:{type:'slide',ratio:0.4}}]}
+  ];
+  const score=importScore(raw), events=score.measures[0].events;
+  assert.deepEqual(events.slice(1).map((event,index)=>event.notes[0].technique),[
+    {type:'hammer',fromNoteId:events[0].notes[0].id},
+    {type:'pull',fromNoteId:events[1].notes[0].id},
+    {type:'slide',fromNoteId:events[2].notes[0].id,ratio:0.4}
+  ]);
+  assert.equal(timeline(score,80).events[3].techniques[0].ratio,0.4);
+  assert.deepEqual(importScore(portable(score)).measures[0].events[3].notes[0].technique,
+    events[3].notes[0].technique);
+});
+
+test('Agent fast partial strums default light and explicit dynamics take precedence',()=>{
+  const raw=example();
+  raw.measures[0].events=[
+    {duration:'1/8',notes:[{string:4,fret:2},{string:3,fret:0},{string:2,fret:1},{string:1,fret:0}],
+      strum:{direction:'down'}},
+    {duration:'1/8',notes:[{string:2,fret:1,dynamics:'strong'},{string:1,fret:0}],strum:{direction:'up'}},
+    {duration:'1/4',notes:[{string:4,fret:2},{string:3,fret:0}],strum:{direction:'up'}},
+    {duration:'1/2',notes:[{string:2,fret:1}]}
+  ];
+  const score=importScore(raw), events=score.measures[0].events;
+  const played=timeline(score,80);
+  assert.deepEqual(played.events[0].strings,[1,2,3,4]);
+  assert.deepEqual(played.events[0].dynamics,['soft','soft','soft','soft']);
+  assert.deepEqual(played.events[1].dynamics,['soft','strong']);
+  assert.deepEqual(played.events[2].dynamics,['normal','normal']);
+  assert.equal(suggestedStrumDynamic(score,events[2]),'normal');
+  events[2].strum.spreadBeats=0.08;
+  delete events[2].strum.speedMode;
+  assert.deepEqual(timeline(score,80).events[2].dynamics,['soft','soft']);
+  events[2].dynamics='strong';
+  assert.deepEqual(timeline(score,80).events[2].dynamics,['strong','strong']);
+  assert.deepEqual(importScore(portable(score)).measures[0].events[2].strum,events[2].strum);
+});
+
+test('Agent invalid technique links and dynamics fail with an actionable location',()=>{
+  const raw=example();
+  const first=raw.measures[0].events[0], second=raw.measures[0].events[1];
+  first.notes.find(note=>note.string===2).technique={type:'hammer'};
+  assert.throws(()=>importScore(raw),/第1小节第1个位置的第2弦技巧.*前面没有/);
+  delete first.notes.find(note=>note.string===2).technique;
+  second.notes.find(note=>note.string===2).technique={type:'hammer'};
+  assert.throws(()=>importScore(raw),/第1小节第2个位置的第2弦技巧.*更高/);
+  second.notes.find(note=>note.string===2).technique={type:'slide',ratio:1};
+  assert.throws(()=>importScore(raw),/slide ratio/);
+  delete second.notes.find(note=>note.string===2).technique;
+  second.dynamics='very-soft';
+  assert.throws(()=>importScore(raw),/第1小节第2个位置的 dynamics/);
 });
 
 test('uncertain Agent content remains editable and visible, rather than becoming open strings',()=>{
@@ -91,7 +182,7 @@ test('Agent pickup bars stay incomplete only when explicitly marked',()=>{
 
 test('Agent format rejects silent field loss and pinpoints structural mistakes',()=>{
   const invalid=(edit,pattern)=>{const raw=example();edit(raw);assert.throws(()=>importScore(raw),pattern);};
-  invalid(raw=>{raw.format='tablens.agent.v2';},/不支持的 Agent 文件格式/);
+  invalid(raw=>{raw.format='tablens.agent.v3';},/不支持的 Agent 文件格式/);
   invalid(raw=>{raw.measures[0].events[0].beat=1;},/第1小节第1个位置.*beat/);
   invalid(raw=>{raw.measures[0].events[0].notes[1].string=6;},/第1小节第1个位置.*第6弦重复/);
   invalid(raw=>{raw.measures[0].events[1].duration='1/3';},/第1小节第2个位置.*duration/);
@@ -147,7 +238,7 @@ test('Agent chord charts preserve explicit voicings and names; names alone stay 
   const pending=importScore(namesOnly).measures[0].events[0];
   assert.equal(pending.chordName,'C');
   assert.equal(pending.chordPending,true);
-  assert.deepEqual(pending.strum,{direction:'down',spreadBeats:0.08,speedMode:'auto'});
+  assert.deepEqual(pending.strum,{direction:'down',spreadBeats:0.08,speedMode:'auto',autoDynamics:true});
   assert.match(pending.issues.join('；'),/按弦位置待确认/);
   assert.equal(importScore(portable(importScore(namesOnly))).measures[0].events[0].chordName,'C');
   assert.throws(()=>timeline(importScore(namesOnly),80),/音符|位置/);

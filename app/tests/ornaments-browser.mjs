@@ -25,7 +25,11 @@ try {
   await control(page,'#grace-articulation').selectOption('pick');
   await control(page,'#apply-grace').click();
   assert.equal(await page.locator('.grace-number').textContent(),'5');
-  assert.equal(await page.locator('.grace-number').getAttribute('y'),'71');
+  const graceAlignment=await page.locator('.grace-number').evaluate(node=>({
+    grace:Number(node.getAttribute('y')),
+    stringLine:Number(node.closest('svg').querySelectorAll('.string-line')[1].getAttribute('y1'))
+  }));
+  assert.equal(graceAlignment.grace-graceAlignment.stringLine,4,'倚音数字应位于指定弦线上');
   await page.evaluate(() => {
     window.__starts = [];
     const start = AudioBufferSourceNode.prototype.start;

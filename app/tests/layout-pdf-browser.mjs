@@ -13,8 +13,9 @@ try{
   const workspace=await page.locator('.workspace').boundingBox();
   assert.ok(heading.height<70,`score heading should be compact, got ${heading.height}px`);
   assert.ok(workspace.y<260,`score workspace should start near the top, got ${workspace.y}px`);
-  const mode=await page.locator('#layout-mode').boundingBox(), sample=await page.locator('#sample-picker').boundingBox();
-  if(sample)assert.ok(Math.abs(mode.y-sample.y)<12,'mode and sample picker share one row');
+  const mode=await page.locator('#layout-mode').boundingBox();
+  assert.ok(mode.width>160&&mode.height<60,`three mode buttons should remain compact: ${JSON.stringify(mode)}`);
+  assert.equal(await page.locator('#sample-picker').locator('..').getAttribute('id'),'sample-section');
   const fixture={schema:'tablens.score',version:1,id:'layout-fixture',title:'布局测试',tempo:80,timeSignature:[4,4],capo:0,
     tuningMidi:[64,59,55,50,45,40],sources:[{id:'p',name:'fixture.png',width:1,height:1,
       dataUrl:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='}],
@@ -22,13 +23,42 @@ try{
   await page.locator('#file-input').setInputFiles({name:'layout.tablens.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(fixture))});
   await page.waitForFunction(()=>document.querySelector('#score-title').value==='布局测试');
   assert.equal(await page.locator('.source-panel').isVisible(),true);
-  await page.locator('#layout-mode').selectOption('practice');
-  assert.equal(await page.locator('.side-column').isVisible(),false);
-  await page.locator('#layout-mode').selectOption('compose');
+  await page.locator('#layout-mode [data-mode="practice"]').click();
+  const modeInPractice=await page.locator('#layout-mode').boundingBox();
+  assert.ok(Math.abs(mode.x-modeInPractice.x)<1&&Math.abs(mode.y-modeInPractice.y)<1,'mode switch must not move when practice controls appear');
+  assert.equal(await page.locator('.source-panel').isVisible(),true);
+  assert.equal(await page.locator('.editor-panel').isVisible(),false);
+  let sourceBox=await page.locator('.source-panel').boundingBox(),tabBox=await page.locator('.score-panel').boundingBox();
+  assert.ok(sourceBox.x<tabBox.x&&sourceBox.width>tabBox.width,'practice should show a larger original on the left');
+  const baseWidth=Number((await page.locator('#source-view').getAttribute('viewBox')).split(' ')[2]);
+  await page.locator('#source-zoom-in').click();
+  assert.ok(Number((await page.locator('#source-view').getAttribute('viewBox')).split(' ')[2])<baseWidth);
+  const imageBox=await page.locator('#source-view').boundingBox();
+  await page.mouse.move(imageBox.x+imageBox.width/2,imageBox.y+imageBox.height/2);
+  await page.mouse.wheel(0,-120);
+  assert.ok(Number((await page.locator('#source-view').getAttribute('viewBox')).split(' ')[2])<baseWidth/1.25);
+  await page.locator('#source-zoom-fit').click();
+  assert.ok(Math.abs(Number((await page.locator('#source-view').getAttribute('viewBox')).split(' ')[2])-baseWidth)<0.01);
+  const beforePan=await page.locator('#source-view').getAttribute('viewBox');
+  await page.mouse.move(imageBox.x+imageBox.width/2,imageBox.y+imageBox.height/2);
+  await page.mouse.down();await page.mouse.move(imageBox.x+imageBox.width/2+25,imageBox.y+imageBox.height/2+20,{steps:4});await page.mouse.up();
+  assert.notEqual(await page.locator('#source-view').getAttribute('viewBox'),beforePan);
+  await page.locator('#practice-view [data-practice-view="tab"]').click();
+  sourceBox=await page.locator('.source-panel').boundingBox();tabBox=await page.locator('.score-panel').boundingBox();
+  assert.ok(tabBox.x<sourceBox.x&&tabBox.width>sourceBox.width,'TAB priority should swap the two views');
+  await page.locator('#layout-mode [data-mode="compose"]').click();
   assert.equal(await page.locator('.editor-panel').isVisible(),true);
   assert.equal(await page.locator('.source-panel').isVisible(),false);
-  await page.locator('#layout-mode').selectOption('review');
+  await page.locator('#layout-mode [data-mode="review"]').click();
   assert.equal(await page.locator('.source-panel').isVisible(),true);
+  const reviewButton=await page.locator('#layout-mode [data-mode="review"]').boundingBox();
+  const composeButton=await page.locator('#layout-mode [data-mode="compose"]').boundingBox();
+  await page.mouse.move(reviewButton.x+reviewButton.width/2,reviewButton.y+reviewButton.height/2);
+  await page.mouse.down();
+  await page.mouse.move(composeButton.x+composeButton.width/2,composeButton.y+composeButton.height/2,{steps:5});
+  await page.mouse.up();
+  assert.equal(await page.locator('#layout-mode').getAttribute('data-active'),'compose');
+  await page.locator('#layout-mode [data-mode="review"]').click();
   await page.locator('#workspace-resizer').focus();
   await page.keyboard.press('ArrowLeft');
   await page.locator('#side-resizer').focus();
@@ -36,7 +66,7 @@ try{
   const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.layout.v1')));
   assert.ok(saved.sideWidth>370&&saved.sourceHeight>210);
   await page.reload();
-  assert.equal(await page.locator('#layout-mode').inputValue(),'review');
+  assert.equal(await page.locator('#layout-mode').getAttribute('data-active'),'review');
   assert.equal(await page.locator('.source-panel').isVisible(),true);
   assert.deepEqual(await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.layout.v1'))),saved);
 
@@ -126,10 +156,27 @@ try{
     sources:[{id:'big-page',name:'PDF 第 1 页',dataUrl:largePage,width:1100,height:800}],
     measures:[{id:'large-measure',number:1,source:{pageId:'big-page',box:[0,0,1100,800]},events:[],issues:[]}]};
   await page.locator('#file-input').setInputFiles({name:'large.tablens.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(largeScore))});
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='多页暂存测试');
   await page.waitForFunction(()=>document.querySelector('#save-status').textContent.includes('已在本机暂存'));
   assert.equal(await page.evaluate(()=>localStorage.getItem('tablens.workspace.v1')),null);
   await page.reload();
   await page.waitForFunction(()=>document.querySelector('#score-title').value==='多页暂存测试');
+  assert.equal(await page.locator('.source-panel').isVisible(),true);
+  const withoutImage={...fixture,id:'without-source',title:'没有原图',sources:[],measures:[{id:'blank',number:1,events:[],issues:[]}]};
+  await page.locator('#file-input').setInputFiles({name:'blank.tablens.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(withoutImage))});
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='没有原图');
+  await page.locator('#layout-mode [data-mode="practice"]').click();
+  assert.equal(await page.locator('.source-panel').isVisible(),false);
+  assert.equal(await page.locator('.score-panel').isVisible(),true);
+  assert.equal(await page.locator('#workspace-resizer').isVisible(),false);
+  const partlyLinked={...fixture,id:'partly-linked',title:'部分有原图',measures:[
+    fixture.measures[0],{id:'without-reference',number:2,events:[],issues:[]}
+  ]};
+  await page.locator('#file-input').setInputFiles({name:'partly-linked.tablens.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(partlyLinked))});
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='部分有原图');
+  await page.locator('[data-select-measure="without-reference"]').click();
+  assert.equal(await page.locator('.source-panel').isVisible(),false);
+  await page.locator('[data-select-measure="m"]').click();
   assert.equal(await page.locator('.source-panel').isVisible(),true);
   assert.deepEqual(errors,[]);
   console.log('PASS: layout resizing, two-page PDF import/append and manual fallback, edited-note preservation and large-draft recovery.');

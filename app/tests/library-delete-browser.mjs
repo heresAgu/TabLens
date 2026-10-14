@@ -54,7 +54,8 @@ try{
   await page.waitForFunction(()=>document.querySelector('#library-status').textContent.includes('已移至回收站'));
   assert.equal(records.size,0);
   assert.equal(await page.locator('[data-library-id]').count(),0);
-  assert.equal(await page.locator('#score-title').inputValue(),'未命名乐谱');
+  assert.notEqual(await page.locator('#score-title').inputValue(),'待删除测试谱');
+  assert.equal(await page.locator('.document-tab-main',{hasText:'待删除测试谱'}).count(),0);
   await page.locator('#library-close').click();
   await page.locator('#open-library').click();
   assert.equal(await page.locator('[data-draft-id="'+scoreId+'"]').count(),0);

@@ -1,0 +1,80 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+
+const browser=await chromium.launch({headless:true,executablePath:'C:/Program Files/Google/Chrome/Application/chrome.exe'});
+const page=await browser.newPage({viewport:{width:1360,height:900}});
+const errors=[];
+page.on('pageerror',error=>errors.push(error.message));
+try {
+  await page.goto(process.env.TABLENS_TEST_URL||'http://127.0.0.1:8765');
+  await page.waitForFunction(()=>document.querySelector('#score-title').value.length>0);
+  const before=await page.evaluate(()=>localStorage.getItem('tablens.workspace.v1'));
+  await page.locator('#settings-open').click();
+  const settingsBox=await page.locator('#settings-dialog').boundingBox();
+  await page.locator('[data-settings-tab="practice"]').click();
+  const practiceBox=await page.locator('#settings-dialog').boundingBox();
+  for(const key of ['x','y','width','height'])assert.ok(Math.abs(settingsBox[key]-practiceBox[key])<2);
+  await page.locator('#default-practice-speed').selectOption('0.75');
+  await page.locator('#default-count-in').check();
+  await page.locator('#default-metronome').check();
+  await page.locator('#source-follow-mode').selectOption('row');
+  await page.locator('#source-preview-enabled').uncheck();
+  assert.equal(await page.locator('#source-preview-layout').isDisabled(),true);
+  await page.locator('#source-preview-enabled').check();
+  await page.locator('#source-preview-layout').selectOption('side');
+  assert.deepEqual(await page.evaluate(()=>[document.querySelector('#speed').value,
+    document.querySelector('#count-in').checked,document.querySelector('#metronome').checked]),['0.75',true,true]);
+  await page.locator('[data-settings-tab="new-score"]').click();
+  const newScoreBox=await page.locator('#settings-dialog').boundingBox();
+  for(const key of ['x','y','width','height'])assert.ok(Math.abs(settingsBox[key]-newScoreBox[key])<2);
+  assert.equal(await page.locator('#settings-close').isVisible(),true);
+  await page.locator('#default-score-tempo').fill('96');
+  await page.locator('#default-score-meter').fill('3/4');
+  await page.locator('#default-score-capo').fill('2');
+  await page.locator('#default-score-sustain').selectOption('timed');
+  await page.locator('#new-score-defaults-form button[type="submit"]').click();
+  assert.match(await page.locator('#new-score-defaults-status').textContent(),/已保存/);
+  assert.equal(await page.evaluate(()=>localStorage.getItem('tablens.workspace.v1')),before);
+  await page.locator('#settings-close').click();
+  await page.locator('#new-score').click();
+  assert.match(await page.locator('#new-score-summary').textContent(),/3\/4 拍、96 BPM/);
+  await page.locator('#new-score-title').fill('Custom Defaults Test');
+  await page.locator('#new-score-form button[type="submit"]').click();
+  let score=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
+  assert.equal(score.tempo,96);assert.deepEqual(score.timeSignature,[3,4]);
+  assert.equal(score.capo,2);assert.equal(score.sustain,'timed');
+  assert.deepEqual(await page.evaluate(()=>[document.querySelector('#speed').value,
+    document.querySelector('#count-in').checked,document.querySelector('#metronome').checked]),['0.75',true,true]);
+  const imported={format:'tablens.agent.v1',metadata:{title:'Imported Meter Test',tempo_bpm:120,
+    time_signature:[6,8],capo:6},measures:[{number:1,events:[{duration:'1/8',notes:[{string:1,fret:0}]}]}]};
+  await page.locator('#file-input').setInputFiles({name:'imported.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(imported))});
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='Imported Meter Test');
+  score=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
+  assert.equal(score.tempo,120);assert.deepEqual(score.timeSignature,[6,8]);assert.equal(score.capo,6);
+  await page.reload();
+  await page.waitForFunction(()=>document.querySelector('#score-title').value==='Imported Meter Test');
+  await page.locator('#settings-open').click();
+  await page.locator('[data-settings-tab="practice"]').click();
+  assert.equal(await page.locator('#default-practice-speed').inputValue(),'0.75');
+  assert.equal(await page.locator('#default-count-in').isChecked(),true);
+  assert.equal(await page.locator('#source-follow-mode').inputValue(),'row');
+  assert.equal(await page.locator('#source-preview-enabled').isChecked(),true);
+  assert.equal(await page.locator('#source-preview-layout').inputValue(),'side');
+  await page.locator('#source-follow-mode').selectOption('measure');
+  await page.locator('#source-preview-layout').selectOption('stacked');
+  await page.locator('[data-settings-tab="new-score"]').click();
+  assert.equal(await page.locator('#default-score-tempo').inputValue(),'96');
+  await page.locator('#default-score-meter').fill('7/7');
+  await page.locator('#new-score-defaults-form button[type="submit"]').click();
+  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.newScoreDefaults.v1')).tempo),96);
+  await page.locator('#reset-new-score-defaults').click();
+  assert.equal(await page.locator('#default-score-tempo').inputValue(),'80');
+  assert.equal(await page.locator('#default-score-meter').inputValue(),'4/4');
+  score=await page.evaluate(()=>JSON.parse(localStorage.getItem('tablens.workspace.v1')));
+  assert.equal(score.tempo,120);
+  if(process.env.TABLENS_SCREENSHOT)await page.screenshot({path:process.env.TABLENS_SCREENSHOT});
+  assert.deepEqual(errors,[]);
+  console.log('PASS: settings categories, practice defaults, new-score defaults, import precedence, persistence and reset.');
+} finally {
+  await browser.close();
+}

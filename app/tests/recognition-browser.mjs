@@ -24,7 +24,11 @@ try {
   await control(page,'#recognition-prepare').click();
   await page.waitForFunction(()=>document.querySelectorAll('#recognition-segments input').length===1);
   await control(page,'#recognition-mode').selectOption('whole');
-  await control(page,'#recognition-prepare').click();
+  const [preparedResponse]=await Promise.all([
+    page.waitForResponse(response=>response.url().endsWith('/api/recognition/prepare')),
+    control(page,'#recognition-prepare').click()
+  ]);
+  const prepared=await preparedResponse.json();
   await page.waitForFunction(()=>document.querySelectorAll('#recognition-segments input').length===8);
   assert.equal(await control(page,'#recognition-segments input:checked').count(),8);
   assert.match(await control(page,'#recognition-estimate').textContent(),/17 次/);
@@ -32,9 +36,7 @@ try {
   await control(page,'#recognition-start').click();
   await page.waitForFunction(()=>document.querySelector('#recognition-status').textContent.includes('密钥'));
   assert.equal(await control(page,'#score-count').textContent(),before);
-  const preparedImage=await control(page,'#recognition-image image').getAttribute('href');
-  const p=await page.request.post('http://127.0.0.1:8765/api/recognition/prepare',{data:{imageDataUrl:preparedImage,name:'lullaby.jpg'}});
-  const prepared=await p.json();const segment=prepared.segments[1];
+  const segment=prepared.segments[1];
   const result={schema:'tablens.score',version:1,id:'mock-score',title:'接口候选测试',tempo:80,timeSignature:[4,4],capo:6,
     tuningMidi:[64,59,55,50,45,40],sources:[prepared.source],measures:[{id:'mock-measure',number:2,source:{pageId:prepared.source.id,box:segment.box},issues:[],events:[
       {id:'mock-e1',kind:'notes',duration:null,issues:[],notes:[{id:'mock-n1',string:1,fret:0,source:{pageId:prepared.source.id,box:[segment.columns[0]-8,segment.stringY[0]-10,segment.columns[0]+10,segment.stringY[0]+10]}},{id:'mock-n2',string:5,fret:2,source:{pageId:prepared.source.id,box:[segment.columns[0]-8,segment.stringY[4]-10,segment.columns[0]+10,segment.stringY[4]+10]}}]},
@@ -46,6 +48,8 @@ try {
   await control(page,'#recognition-start').click();
   await page.waitForFunction(()=>!document.querySelector('#recognition-apply').disabled);
   assert.equal(await control(page,'#score-count').textContent(),before);
+  assert.match(await page.locator('#recognition-coverage').textContent(),/已识别 1 段 · 待补录 7 段/);
+  assert.match(await page.locator('[data-segment-status="segment-2"]').textContent(),/已识别/);
   await control(page,'#candidate-tab .has-note').first().click();
   assert.equal(await control(page,'#recognition-image .source-focus,#recognition-image .source-chord').count(),2);
   await mkdir('app/.runtime',{recursive:true});
@@ -53,7 +57,15 @@ try {
   await control(page,'#recognition-apply').click();
   await page.waitForFunction(()=>document.querySelector('#score-title').value==='接口候选测试');
   assert.equal(await control(page,'#score-title').inputValue(),'接口候选测试');
+  assert.equal(await control(page,'#tab-view .measure-card').count(),8,'未识别段落应保留为空小节');
   assert.equal(await control(page,'#tab-view .has-note').count(),3);
+  await page.locator('.review-panel summary').click();
+  await page.locator('.review-issue').filter({hasText:'原图第 1 段未导入'}).click();
+  assert.equal(await page.locator('#source-view').isVisible(),true,'未识别段落仍可查看对应原图');
+  assert.equal(await page.locator('#tab-view .selected-measure').count(),1);
+  assert.equal(await page.locator('#retry-measure').isEnabled(),true,'空小节可从原图重试识别');
+  assert.equal(await page.locator('.review-measure').first().locator('.review-confirm').isDisabled(),true);
+  await control(page,'#tab-view .has-note').first().click();
   assert.equal(await control(page,'#source-view .source-chord,#source-view .source-focus').count(),2);
   const viewBox=await control(page,'#source-view').getAttribute('viewBox');
   assert.ok(Number(viewBox.split(' ')[1])>400,'original-image view should follow second staff');
@@ -66,9 +78,9 @@ try {
   await control(page,'#undo').click();
   await control(page,'#time-signature').fill('3/4');await control(page,'#time-signature').press('Tab');
   await control(page,'#batch-scope').selectOption('all');await control(page,'#apply-duration').click();
-  assert.match(await control(page,'#tab-view .measure-state').textContent(),/不自动补齐/);
+  assert.match(await control(page,'#tab-view .active-measure .measure-state').textContent(),/不自动补齐/);
   await control(page,'#incomplete-measure').check();
-  assert.equal(await control(page,'#tab-view .measure-state').textContent(),'节奏已设置');
+  assert.equal(await control(page,'#tab-view .active-measure .measure-state').textContent(),'节奏已设置');
   // Local candidate stays pending and refuses replacement after a manual edit.
   await control(page,'#retry-measure').click();await control(page,'#recognition-prepare').click();
   await page.waitForFunction(()=>document.querySelectorAll('#recognition-segments input').length===1);
@@ -81,12 +93,13 @@ try {
   await control(page,'#recognition-close').click();
   const downloadEvent=page.waitForEvent('download');await control(page,'#export-file').click();
   const download=await downloadEvent;const saved=JSON.parse(await readFile(await download.path(),'utf8'));
-  assert.ok(saved.sources[0].dataUrl);assert.equal(saved.measures[0].events[0].notes[0].fret,7);
+  assert.ok(saved.sources[0].dataUrl);assert.equal(saved.measures[0].events.length,0);
+  assert.equal(saved.measures[1].events[0].notes[0].fret,7);
   assert.equal(saved.timeSignature[0],3);
   await control(page,'#undo').click(); // Undo manual note edit.
   assert.equal(await control(page,'#edit-fret').inputValue(),'0');
   await control(page,'#file-input').setInputFiles({name:'saved.tablens.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(saved))});
-  await page.waitForFunction(()=>document.querySelector('#edit-fret').value==='7');
+  await page.waitForFunction(()=>document.querySelector('#edit-fret').value==='0');
   const illegal=await page.request.post('http://127.0.0.1:8765/api/recognition/config',{headers:{Origin:'https://unrelated.example'},data:{key:'mock'}});
   assert.equal(illegal.status(),403);
   // Retrying failed segments combines candidates without losing successful bars.
@@ -96,6 +109,7 @@ try {
   await control(page,'#recognition-mode').selectOption('whole');
   await control(page,'#recognition-prepare').click();
   await page.waitForFunction(()=>document.querySelectorAll('#recognition-segments input').length===8);
+  assert.match(await page.locator('#recognition-coverage').textContent(),/已识别 0 段 · 待补录 8 段/);
   Object.assign(job,{state:'partial',completed:1,total:2,errors:['模拟第三段失败'],segments:[{id:'segment-2',state:'complete'},{id:'segment-3',state:'failed'}],result});
   await control(page,'#recognition-start').click();
   await page.waitForFunction(()=>document.querySelector('#recognition-status').textContent.includes('部分小节完成'));
@@ -104,9 +118,9 @@ try {
   for (const e of second.measures[0].events){e.id+='-3';for(const n of e.notes)n.id+='-3';}
   Object.assign(job,{state:'complete',completed:1,total:1,errors:[],segments:[{id:'segment-3',state:'complete'}],result:second});
   await control(page,'#recognition-start').click();
-  await page.waitForFunction(()=>document.querySelectorAll('#candidate-tab .measure-card').length===2);
+  await page.waitForFunction(()=>document.querySelectorAll('#candidate-tab .measure-card').length===8);
   assert.equal(await control(page,'#candidate-tab .has-note').count(),6);
-  assert.equal(await control(page,'#tab-view .measure-card').count(),1,'retry candidates must not change the open score');
+  assert.equal(await control(page,'#tab-view .measure-card').count(),8,'retry candidates must not change the open score');
   await control(page,'#recognition-close').click();
   assert.deepEqual(errors,[]);
   await mkdir('app/.runtime',{recursive:true});await page.screenshot({path:'app/.runtime/recognition-workspace.png',fullPage:true});

@@ -1,14 +1,14 @@
-import {validateTechniques} from './techniques.js';
+import {validateTechniques, setNoteTechnique} from './techniques.js';
 import {validateOrnaments} from './ornaments.js';
-import {AGENT_FORMAT, normalizeAgentDraft} from './agent-format.js';
+import {isAgentFormat, normalizeAgentDraft} from './agent-format.js';
 // Stable, portable score data. All views edit this model, never the picture.
 export const SCHEMA = 'tablens.score';
 export const clone = value => structuredClone(value);
 const id = prefix => `${prefix}-${globalThis.crypto.randomUUID()}`;
 export const DYNAMIC_GAIN = {soft: 0.55, normal: 1, strong: 1.35};
-export const dynamicLevel = (event, note) => note?.dynamics ?? event.dynamics ?? 'normal';
+export const dynamicLevel = (event, note, fallback = 'normal') => note?.dynamics ?? event.dynamics ?? fallback;
 export const dynamicVolume = value => typeof value==='number'?value:({soft:40,normal:70,strong:100}[value??'normal']);
-export const dynamicCategory = (event,note) => {const value=dynamicVolume(dynamicLevel(event,note));return value<55?'soft':value>85?'strong':'normal';};
+export const dynamicCategory = (event,note,fallback = 'normal') => {const value=dynamicVolume(dynamicLevel(event,note,fallback));return value<55?'soft':value>85?'strong':'normal';};
 export function dynamicGain(value){
   if(typeof value!=='number')return DYNAMIC_GAIN[value??'normal']??1;
   return value<=40?value/40*0.55:value<=70?0.55+(value-40)/30*0.45:1+(value-70)/30*0.35;
@@ -48,6 +48,8 @@ export function validate(score) {
   const seen = new Set();
   for (const measure of score.measures) {
     if (!Array.isArray(measure.events)) throw new Error('小节数据不完整');
+    if (measure.reviewedSnapshot !== undefined && (typeof measure.reviewedSnapshot !== 'string' || measure.reviewedSnapshot.length > 1_000_000))
+      throw new Error('小节核对记录无效');
     for (const event of measure.events) {
       if (!event.id || seen.has(event.id)) throw new Error('音符位置编号重复');
       seen.add(event.id);
@@ -61,8 +63,11 @@ export function validate(score) {
         throw new Error('和弦名称须对应至少两颗音，或标记为待确认指型；名称不超过24字');
       if (event.strum !== undefined && (!event.strum || !['down', 'up'].includes(event.strum.direction) ||
         !Number.isFinite(event.strum.spreadBeats) || event.strum.spreadBeats < 0.04 || event.strum.spreadBeats > 0.5 ||
-        (event.strum.speedMode !== undefined && event.strum.speedMode !== 'auto') || (event.notes.length < 2 && !event.chordPending)))
-        throw new Error('扫弦须设置在至少两颗音的演奏位置，跨度为0.04–0.5拍');
+        (event.strum.speedMode !== undefined && event.strum.speedMode !== 'auto') ||
+        (event.strum.autoDynamics !== undefined && event.strum.autoDynamics !== true) ||
+        (event.strum.volume !== undefined && (!Number.isInteger(event.strum.volume) || event.strum.volume < 0 || event.strum.volume > 100)) ||
+        (event.notes.length < 2 && !event.chordPending)))
+        throw new Error('扫弦须设置在至少两颗音的演奏位置，跨度为0.04–0.5拍，力度为0–100');
       const strings = new Set();
       for (const note of event.notes) {
         checkDynamics(note.dynamics);
@@ -85,7 +90,7 @@ export function validate(score) {
 }
 
 export function importScore(raw) {
-  const agentDraft = raw?.format === AGENT_FORMAT;
+  const agentDraft = isAgentFormat(raw?.format);
   if (agentDraft) raw = normalizeAgentDraft(raw);
   else if (raw?.format) throw new Error('不支持的 Agent 文件格式：' + raw.format);
   if (raw?.schema === SCHEMA) {const score=validate(clone(raw));renumberMeasures(score);return score;}
@@ -98,29 +103,45 @@ export function importScore(raw) {
     title: raw.preview_title ?? meta.title ?? '未命名乐谱',
     tempo: meta.tempo_bpm ?? null, timeSignature: meta.time_signature ?? null,
     capo: meta.capo ?? null, tuningMidi: [64, 59, 55, 50, 45, 40], tuningOrigin: 'standard-default',
-    sources: source ? [clone(source)] : [], issues: raw.uncertain_items ?? [], measures: []};
+    sources: raw.sources ? clone(raw.sources) : source ? [clone(source)] : [],
+    issues: raw.uncertain_items ?? [], measures: []};
+  const pendingTechniques = [];
   for (const [mi, measure] of raw.measures.entries()) {
     if (!Array.isArray(measure.events)) throw new Error('请打开包含音符位置的识别结果');
     const number = measure.number ?? mi + 1;
     const normalized = {id: `measure-${mi + 1}`, number, issues: measure.uncertain_items ?? [],
       allowIncomplete: measure.allow_incomplete === true, ...(agentDraft ? {agentImported: true} : {}), events: []};
+    if (measure.source) normalized.source = clone(measure.source);
     for (const [ei, event] of measure.events.entries()) {
       const eventId = `m${mi + 1}-e${ei + 1}`;
       const item = {id: eventId, kind: event.kind ?? (event.notes?.length ? 'notes' : 'unknown'),
         duration: event.duration ?? null, issues: event.uncertain_items ?? [], notes: []};
       if (event.strum !== undefined) item.strum = clone(event.strum);
+      if (event.dynamics !== undefined) item.dynamics = event.dynamics;
       if (event.chordName !== undefined) item.chordName = event.chordName;
       if (event.chordPending === true) item.chordPending = true;
       for (const [ni, note] of (event.notes ?? []).entries()) {
         const box = note.source_box_in_row ?? note.source?.cell_source_box;
         const mapped = box && crop ? [box[0] + crop[0], box[1] + crop[1], box[2] + crop[0], box[3] + crop[1]] : null;
         // Preserve unknown fret, rather than turning it into an open string.
-        item.notes.push({id: `${eventId}-n${ni + 1}`, string: note.string, fret: note.fret ?? null,
-          source: mapped ? {pageId, box: mapped} : null});
+        const noteId = `${eventId}-n${ni + 1}`;
+        item.notes.push({id: noteId, string: note.string, fret: note.fret ?? null,
+          source: mapped ? {pageId, box: mapped} : null,
+          ...(note.dynamics !== undefined ? {dynamics: note.dynamics} : {})});
+        if (agentDraft && note.technique) pendingTechniques.push({eventId, noteId,
+          technique: note.technique, measureNumber: number, position: ei + 1, string: note.string});
       }
       normalized.events.push(item);
     }
     score.measures.push(normalized);
+  }
+  for (const pending of pendingTechniques) {
+    try {
+      setNoteTechnique(score, pending.eventId, pending.noteId, pending.technique.type,
+        pending.technique.ratio ?? 0.2);
+    } catch (error) {
+      throw new Error(`第${pending.measureNumber}小节第${pending.position}个位置的第${pending.string}弦技巧：${error.message}`);
+    }
   }
   renumberMeasures(score);
   return validate(score);
@@ -181,9 +202,15 @@ export function removePosition(score, eventId) {
     ?? score.measures.flatMap(measure => measure.events)[0] ?? null;
 }
 
-export function newScore(title = '未命名编曲') {
-  const score={schema:SCHEMA,version:1,id:id('score'),title,tempo:80,timeSignature:[4,4],capo:0,
+export function newScore(title = '未命名编曲', defaults = {}) {
+  const tempo=defaults.tempo??80,timeSignature=defaults.timeSignature??[4,4],capo=defaults.capo??0;
+  if(!Number.isInteger(tempo)||tempo<20||tempo>300||!Array.isArray(timeSignature)||timeSignature.length!==2||
+    !Number.isInteger(timeSignature[0])||timeSignature[0]<1||timeSignature[0]>32||
+    ![1,2,4,8,16,32].includes(timeSignature[1])||!Number.isInteger(capo)||capo<0||capo>24||
+    (defaults.sustain!==undefined&&!['natural','timed'].includes(defaults.sustain)))throw new Error('新建乐谱设置无效');
+  const score={schema:SCHEMA,version:1,id:id('score'),title,tempo,timeSignature:[...timeSignature],capo,
     tuningMidi:[64,59,55,50,45,40],tuningOrigin:'standard-default',sources:[],measures:[]};
+  if(defaults.sustain!==undefined)score.sustain=defaults.sustain;
   insertMeasure(score);
   return score;
 }
@@ -194,7 +221,7 @@ export function insertMeasure(score, anchorId = null, placement = 'after', copy 
   const measure=copy ? clone(score.measures[index]) : {events:[],issues:[],authored:true};
   measure.id=id('measure');
   if(copy) {
-    measure.copiedFrom=anchorId;delete measure.recognition;
+    measure.copiedFrom=anchorId;delete measure.recognition;delete measure.reviewedSnapshot;
     const copiedNoteIds = new Map();
     for(const event of measure.events) {
       event.id=id('event');

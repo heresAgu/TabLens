@@ -81,6 +81,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/recognition/pdf/render': return self.json(PDF_IMPORTER.render(value))
             if path == '/api/recognition/config': return self.json(RECOGNITION.configure(value))
             if path == '/api/recognition/prepare': return self.json(RECOGNITION.prepare(value))
+            if path == '/api/recognition/manual-segment': return self.json(RECOGNITION.add_manual_segment(value))
             if path == '/api/recognition/start': return self.json(RECOGNITION.start(value))
             if path.startswith('/api/recognition/jobs/') and path.endswith('/cancel'):
                 return self.json(RECOGNITION.cancel(path.split('/')[-2]))

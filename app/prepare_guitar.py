@@ -117,7 +117,7 @@ def refine_sample(sample, rate):
     return wet, offset, denoised
 
 
-def extract(path):
+def extract(path, *, skip_missing=False):
     data, rate = read_aiff(path)
     data = remove_subbass(data, rate)
     match = re.search(r'\.sul(E|A|D|G|B|_E)\.([A-G]b?\d)([A-G]b?\d)?\.aif$', path.name)
@@ -149,6 +149,9 @@ def extract(path):
     for index, note in enumerate(notes):
         candidates = np.flatnonzero((labels == index) & confident & (energy > max(0.0003, energy.max() * 0.01)))
         if not len(candidates):
+            if skip_missing:
+                print('Skipped missing sample', path.name, int(note))
+                continue
             raise ValueError(f'{path.name}: no confident sample for MIDI {note}')
         # A transient or a loud harmonic must not steal a note from another
         # part of the recording. Require a sustained classification and keep

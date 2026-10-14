@@ -1,4 +1,5 @@
 import {fraction, validate, dynamicLevel, dynamicGain} from './core.js';
+import {autoStrumGain, getAutoStrumContrast} from './preferences.js';
 
 export function pitches(score, event) {
   const tuning = score.tuningMidi ?? [64, 59, 55, 50, 45, 40];
@@ -36,6 +37,56 @@ export function suggestedStrumSpread(score, eventId) {
   const events = score.measures.flatMap(measure => measure.events);
   const index = events.findIndex(event => event.id === eventId);
   return index < 0 ? AUTO_FAST : automaticStrumSpread(events, index);
+}
+
+export function suggestedStrumDynamic(score, event) {
+  if (!event.strum?.autoDynamics) return 'normal';
+  const spread = event.strum.speedMode === 'auto'
+    ? suggestedStrumSpread(score, event.id) : event.strum.spreadBeats;
+  return spread <= AUTO_FAST ? 'soft' : 'normal';
+}
+
+export function effectiveDynamicLevel(score, event, note) {
+  return dynamicLevel(event, note, suggestedStrumDynamic(score, event));
+}
+
+// This contour is derived from score rhythm, including legacy strums without
+// autoDynamics. It never rewrites a saved score or its per-string dynamics.
+function accentAtBeat(score, beat) {
+  const [count, denominator] = score.timeSignature ?? [4, 4];
+  const beatLength = denominator === 8 && count > 3 && count % 3 === 0 ? 1.5 : 4 / denominator;
+  if (!Number.isFinite(beatLength) || beatLength <= 0) return 1;
+  const position = beat / beatLength;
+  const nearest = Math.round(position);
+  if (Math.abs(position - nearest) < 0.08) {
+    if (nearest === 0) return 1.07;
+    if (count === 4) return [1.07, 1.02, 1.04, 0.99][nearest % 4];
+    return nearest % 2 === 0 ? 1.01 : 0.99;
+  }
+  return Math.abs(position - Math.floor(position) - 0.5) < 0.08 ? 0.97 : 0.94;
+}
+
+export function strumAccents(score) {
+  const accents = new Map();
+  for (const measure of score.measures) {
+    let beat = 0;
+    for (const event of measure.events) {
+      if (event.strum) accents.set(event.id, accentAtBeat(score, beat));
+      const duration = fraction(event.duration);
+      beat += duration === null ? 0.5 : duration * 4;
+    }
+  }
+  return accents;
+}
+
+export function suggestedStrumAccent(score, event) {
+  return strumAccents(score).get(event.id) ?? 1;
+}
+
+export function strumVolumeGain(score, event, accents = null, contrast = getAutoStrumContrast()) {
+  if (!event.strum) return 1;
+  if (event.strum.volume !== undefined) return dynamicGain(event.strum.volume);
+  return autoStrumGain(accents?.get(event.id) ?? suggestedStrumAccent(score, event), contrast);
 }
 
 function along(points, progress) {
@@ -78,6 +129,8 @@ export function timeline(score, bpm, range = null) {
   if (range && (!Number.isInteger(range.from) || !Number.isInteger(range.to) || range.from < 0 || range.to >= score.measures.length || range.from > range.to)) throw new Error('练习范围的起始小节不能晚于结束小节');
   const measures = range ? score.measures.slice(range.from, range.to + 1) : score.measures;
   const allEvents = score.measures.flatMap(measure => measure.events);
+  const automaticAccents = strumAccents(score);
+  const strumContrast = getAutoStrumContrast();
   const automaticSpreads = new Map();
   allEvents.forEach((event, index) => {
     if (event.strum?.speedMode === 'auto') automaticSpreads.set(event.id, automaticStrumSpread(allEvents, index));
@@ -103,7 +156,8 @@ export function timeline(score, bpm, range = null) {
         sustain: event.sustain,
         strum: event.strum?.speedMode === 'auto'
           ? {...event.strum, spreadBeats: automaticSpreads.get(event.id)} : event.strum ?? null,
-        dynamics: event.notes.map(note => dynamicLevel(event, note))});
+        strumGain: strumVolumeGain(score, event, automaticAccents, strumContrast),
+        dynamics: event.notes.map(note => effectiveDynamicLevel(score, event, note))});
       total += duration;
     } catch (error) { error.eventId = event.id; throw error; }
   }
@@ -122,7 +176,8 @@ export function voicePlan(data, options = {}, naturalDuration = () => 3) {
       const string = event.strings?.[index], style = stroke.get(string);
       const noteStart = event.start + (style?.offset ?? 0);
       const natural = event.sustain === 'natural' || (event.sustain !== 'timed' && options.sustain === 'natural');
-      const volume = 0.16 * dynamicGain(event.dynamics?.[index]) / Math.sqrt(event.midi.length) * (style?.gain ?? 1);
+      const volume = 0.16 * dynamicGain(event.dynamics?.[index]) / Math.sqrt(event.midi.length) *
+        (style?.gain ?? 1) * (event.strum ? event.strumGain ?? 1 : 1);
       const grace = event.graces?.[index];
       const technique = grace && grace.articulation !== 'pick' ?
         {type: grace.articulation, fromNoteId: grace.id,
@@ -130,7 +185,8 @@ export function voicePlan(data, options = {}, naturalDuration = () => 3) {
           graceSlide: grace.articulation === 'slide'} : event.techniques?.[index];
       notes.push({start: noteStart, end: natural ? noteStart + naturalDuration(midi, string) : event.start + event.duration,
         duration: event.duration, midi, string, natural, noteId: event.noteIds?.[index],
-        technique, bend: event.bends?.[index], volume, attack: style?.attack});
+        technique, bend: event.bends?.[index], volume, attack: style?.attack,
+        strumDirection: style ? event.strum.direction : null});
       if (grace) notes.push({start: noteStart - grace.lead, end: noteStart,
         duration: grace.lead, midi: grace.midi, string: grace.string, natural: false,
         noteId: grace.id, technique: null, bend: null, volume: volume * (grace.articulation === 'slide' ? 0.22 : 0.7), isGrace: true,
@@ -351,7 +407,8 @@ export class Player {
         const when = Math.max(context.currentTime, this.origin + Math.max(start, this.offset));
         this.voices.push({stop: this.instrument(context, voice.midi, when, remaining, voice.volume, voice.string,
           {offset: Math.max(0, attack - start), natural: voice.natural, transitions: voice.transitions,
-            attack: voice.attack, destination:this.master??context.destination}), end: when + remaining + 0.02});
+            attack: voice.attack, strumDirection: voice.strumDirection,
+            destination:this.master??context.destination}), end: when + remaining + 0.02});
       }
       this.nextVoice++;
     }
@@ -424,10 +481,11 @@ export class Player {
         techniques: event.notes.map(note => note.technique ?? null),
         dynamics, sustain: event.sustain,
         strum: event.strum?.speedMode === 'auto'
-          ? {...event.strum, spreadBeats: suggestedStrumSpread(score, event.id)} : event.strum ?? null
+          ? {...event.strum, spreadBeats: suggestedStrumSpread(score, event.id)} : event.strum ?? null,
+        strumGain: strumVolumeGain(score, event)
       }], total: duration, bpm};
       await this.instrument.prepare?.(context, [
-        {midi, strings}, ...graces.filter(Boolean).map(grace => ({midi: [grace.midi], strings: [grace.string]}))
+        data.events[0], ...graces.filter(Boolean).map(grace => ({midi: [grace.midi], strings: [grace.string]}))
       ]);
       if (generation !== this.generation) return;
       const plan = voicePlan(data, {sustain}, this.instrument.naturalDuration);
@@ -438,6 +496,7 @@ export class Player {
         if (length <= 0 || (voice.volume === 0 && !voice.transitions?.some(item => item.volume > 0))) continue;
         this.voices.push({stop: this.instrument(context, voice.midi, when, length, voice.volume, voice.string,
           {natural: voice.natural, transitions: voice.transitions, attack: voice.attack,
+            strumDirection: voice.strumDirection,
             destination: this.master ?? context.destination}),
           end: when + length + 0.02});
       }
